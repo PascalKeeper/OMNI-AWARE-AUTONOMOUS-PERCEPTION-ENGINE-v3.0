@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OMNI-PERCEPTION OS v0.9.4</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background-color: #0f172a; color: #e2e8f0; overflow: hidden; }
+  .panel { background: rgba(15, 23, 42, 0.5); border-radius: 8px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+</style>
+</head>
+<body class="h-screen flex flex-col font-sans">
+
+<header class="flex items-center justify-between px-6 py-4 bg-slate-950 border-b border-slate-800">
+  <div class="flex items-center space-x-3">
+    <div class="p-2 bg-blue-600 rounded-lg">
+      <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+    </div>
+    <div>
+      <h1 class="text-xl font-bold tracking-wider">OMNI-PERCEPTION OS</h1>
+      <p class="text-xs text-slate-400">AUTONOMOUS VEHICLE KERNEL v0.9.4</p>
+    </div>
+  </div>
+  <div class="flex items-center space-x-6">
+    <div class="flex items-center space-x-2"><div class="status-dot bg-green-500"></div><span class="text-xs font-bold">LIDAR</span></div>
+    <div class="flex items-center space-x-2"><div class="status-dot bg-green-500"></div><span class="text-xs font-bold">RADAR</span></div>
+    <div class="flex items-center space-x-2"><div class="status-dot bg-blue-500"></div><span class="text-xs font-bold">VISION</span></div>
+    <div class="h-8 w-px bg-slate-700"></div>
+    <button id="toggleBtn" class="px-6 py-2 rounded font-bold bg-emerald-500 hover:bg-emerald-600 text-white">INITIALIZE SYSTEM</button>
+  </div>
+</header>
+
+<main class="flex flex-1 overflow-hidden">
+  <aside class="w-80 bg-slate-900 border-r border-slate-800 p-4 flex flex-col gap-4 overflow-y-auto">
+    <div class="panel p-4">
+      <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">System Diagnostics</h3>
+      <div class="space-y-2 text-xs font-mono">
+        <div class="flex justify-between"><span class="text-slate-400">CPU LOAD</span><span class="text-green-400">14%</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">LATENCY</span><span class="text-green-400">12ms</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">FPS</span><span id="fpsVal" class="text-blue-400">0</span></div>
+      </div>
+    </div>
+    <div class="panel p-4 flex-1">
+      <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Active Tracking</h3>
+      <div id="trackList" class="space-y-3"></div>
+    </div>
+  </aside>
+
+  <section class="flex-1 relative bg-black flex flex-col">
+    <div class="absolute top-4 left-4 z-10 flex space-x-2">
+      <div class="bg-slate-900/80 text-xs px-3 py-1 rounded text-white border border-slate-700">CAM_FRONT_WIDE</div>
+      <div class="bg-slate-900/80 text-xs px-3 py-1 rounded text-white border border-slate-700">LIDAR_FUSION_ENABLED</div>
+    </div>
+    <div class="flex-1 relative">
+      <div id="standby" class="absolute inset-0 flex items-center justify-center bg-black/50 z-20">
+        <div class="text-center">
+          <h2 class="text-2xl font-bold text-slate-500">SYSTEM STANDBY</h2>
+          <p class="text-slate-400 mt-2">Initialize backend to start perception engine</p>
+        </div>
+      </div>
+      <canvas id="bevCanvas" width="800" height="600" class="w-full h-full object-cover"></canvas>
+    </div>
+    <div class="h-32 bg-slate-950 border-t border-slate-800 p-4 font-mono text-xs overflow-y-auto">
+      <div class="text-slate-500 mb-1">--- SYSTEM LOG STREAM ---</div>
+      <div id="logStream"></div>
+    </div>
+  </section>
+
+  <aside class="w-64 bg-slate-900 border-l border-slate-800 p-4">
+    <div class="panel p-4">
+      <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Sensor Controls</h3>
+      <div class="space-y-4">
+        <div class="flex items-center justify-between"><span class="text-sm">Lidar Array</span><div class="w-8 h-4 rounded-full p-0.5 bg-blue-600"><div class="w-3 h-3 bg-white rounded-full translate-x-4"></div></div></div>
+        <div class="flex items-center justify-between"><span class="text-sm">Radar (Long Range)</span><div class="w-8 h-4 rounded-full p-0.5 bg-blue-600"><div class="w-3 h-3 bg-white rounded-full translate-x-4"></div></div></div>
+        <div class="flex items-center justify-between"><span class="text-sm">Stereo Cameras</span><div class="w-8 h-4 rounded-full p-0.5 bg-blue-600"><div class="w-3 h-3 bg-white rounded-full translate-x-4"></div></div></div>
+        <div class="flex items-center justify-between"><span class="text-sm">Ultrasonic</span><div class="w-8 h-4 rounded-full p-0.5 bg-slate-700"><div class="w-3 h-3 bg-white rounded-full"></div></div></div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<script>
+class Entity {
+  constructor(id, type, x, y, speed) {
+    this.id = id; this.type = type; this.x = x; this.y = y; this.speed = speed;
+    this.width = type === 'pedestrian' ? 0.5 : 2.0;
+    this.length = type === 'pedestrian' ? 0.5 : 4.5;
+    this.confidence = 0.0;
+  }
+  update(dt) { this.y += this.speed * dt; }
+}
+
+class PerceptionBackend {
+  constructor() {
+    this.entities = [];
+    this.lastUpdate = performance.now();
+    this.spawnEntity(1, 'car', -3.5, 20, -2);
+    this.spawnEntity(2, 'truck', 3.5, 50, -5);
+    this.spawnEntity(3, 'pedestrian', -5, 80, -24);
+  }
+  spawnEntity(id, type, x, y, speed) {
+    this.entities.push(new Entity(id, type, x, y, speed));
+  }
+  getSensorData() {
+    const noise = 0.1;
+    return this.entities.map(e => ({
+      ...e,
+      measuredX: e.x + (Math.random() * noise - noise/2),
+      measuredY: e.y + (Math.random() * noise - noise/2)
+    }));
+  }
+  fuseSensors(raw) {
+    return raw.map(entity => {
+      let confidence = 0.5;
+      confidence += 0.3; // lidar
+      confidence += 0.15; // camera
+      if (entity.y > 100) confidence -= 0.1;
+      return { ...entity, confidence: Math.min(confidence, 0.999) };
+    }).filter(e => e.y > -10 && e.y < 150);
+  }
+  tick() {
+    const now = performance.now();
+    const dt = (now - this.lastUpdate) / 1000;
+    this.lastUpdate = now;
+    this.entities.forEach(e => e.update(dt));
+    this.entities = this.entities.filter(e => e.y > -20);
+    if (Math.random() < 0.02 && this.entities.length < 5) {
+      const lane = Math.random() > 0.5 ? 3.5 : -3.5;
+      const type = Math.random() > 0.8 ? 'truck' : 'car';
+      this.spawnEntity(Date.now(), type, lane, 120, (Math.random() * -5) - 2);
+    }
+    return this.fuseSensors(this.getSensorData());
+  }
+}
+
+const backend = new PerceptionBackend();
+const canvas = document.getElementById('bevCanvas);
+const ctx = canvas.getContext('2d);
+let active = false;
+let frameCount = 0;
+let lastFpsTime = performance.now();
+
+document.getElementById('toggleBtn').addEventListener('click', () => {
+  active = !active;
+  const btn = document.getElementById('toggleBtn);
+  btn.textContent = active ? 'DISENGAGE' : 'INITIALIZE SYSTEM';
+  btn.className = active
+    ? 'px-6 py-2 rounded font-bold bg-red-500 hover:bg-red-600 text-white'
+    : 'px-6 py-2 rounded font-bold bg-emerald-500 hover:bg-emerald-600 text-white';
+  document.getElementById('standby').style.display = active ? 'none' : 'flex';
+});
+
+function render(entities) {
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, W, H);
+  const mToPx = 6, centerX = W / 2, vehicleY = H - 100;
+  const toSX = x => centerX + x * mToPx * 4;
+  const toSY = y => vehicleY - y * mToPx;
+
+  // grid
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
+  for (let i = 0; i < H; i += 40) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(W, i); ctx.stroke(); }
+  // road edges
+  ctx.strokeStyle = '#334155';
+  ctx.beginPath(); ctx.moveTo(toSX(-3.5), H); ctx.lineTo(toSX(-10), 0);
+  ctx.moveTo(toSX(3.5), H); ctx.lineTo(toSX(10), 0); ctx.stroke();
+  // center lane
+  ctx.setLineDash([20, 20]); ctx.strokeStyle = '#64748b';
+  ctx.beginPath(); ctx.moveTo(toSX(0), H); ctx.lineTo(toSX(0), 0); ctx.stroke(); ctx.setLineDash([]);
+  // ego vehicle
+  ctx.fillStyle = '#3b82f6'; ctx.shadowBlur = 15; ctx.shadowColor = '#3b82f6';
+  ctx.fillRect(centerX - 15, vehicleY, 30, 60); ctx.shadowBlur = 0;
+  // sensor frustum
+  ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+  ctx.beginPath(); ctx.moveTo(centerX, vehicleY); ctx.lineTo(0, 0); ctx.lineTo(W, 0); ctx.fill();
+  // entities
+  entities.forEach(e => {
+    const sx = toSX(e.x), sy = toSY(e.y);
+    const sw = e.width * mToPx * 4, sl = e.length * mToPx;
+    ctx.strokeStyle = e.type === 'pedestrian' ? '#ef4444' : e.type === 'truck' ? '#eab308' : '#10b981';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(sx - sw/2, sy - sl, sw, sl);
+    ctx.beginPath(); ctx.moveTo(sx, sy - sl); ctx.lineTo(sx, sy - sl - 30); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = '10px monospace';
+    ctx.fillText(`${e.type.toUpperCase()} [ID:${e.id.toString().slice(-3)}]`, sx - sw/2, sy - sl - 5);
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(`CONF: ${(e.confidence * 100).toFixed(0)}%`, sx - sw/2, sy - sl + 15);
+  });
+}
+
+function loop() {
+  if (!active) { requestAnimationFrame(loop); return; }
+  const entities = backend.tick();
+  render(entities);
+  // tracking list
+  const list = document.getElementById('trackList);
+  list.innerHTML = entities.map(e => `
+    <div class="bg-slate-800 p-3 rounded border border-slate-700 relative overflow-hidden">
+      <div class="absolute left-0 top-0 bottom-0 w-1 ${e.confidence > 0.8 ? 'bg-green-500' : 'bg-yellow-500'}"></div>
+      <div class="flex justify-between items-start mb-1">
+        <span class="font-bold text-sm uppercase">${e.type}</span>
+        <span class="text-xs font-mono text-slate-500">ID:${e.id.toString().slice(-4)}</span>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-xs text-slate-400 font-mono">
+        <div>DIST: ${e.y.toFixed(1)}m</div><div>VEL: ${e.speed.toFixed(1)}m/s</div>
+        <div>LANE: ${e.x > 0 ? 'R' : e.x < 0 ? 'L' : 'C'}</div><div>CONF: ${(e.confidence*100).toFixed(0)}%</div>
+      </div>
+    </div>`).join('');
+  // log stream
+  const log = document.getElementById('logStream);
+  log.innerHTML = `<div class="text-green-500">INFO [Perception]: Lidar point cloud synced.</div>
+    <div class="text-blue-500">INFO [Vision]: Object classification model running.</div>
+    <div class="text-slate-400">DEBUG [Fusion]: Kalman filter variance within tolerance.</div>`
+    + entities.map(e => `<div class="text-slate-300">TRACKING [${e.id}]: ${e.type.toUpperCase()} @ ${e.y.toFixed(1)}m</div>`).join('');
+  // fps
+  frameCount++;
+  const now = performance.now();
+  if (now - lastFpsTime >= 1000) {
+    document.getElementById('fpsVal').textContent = frameCount;
+    frameCount = 0; lastFpsTime = now;
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
