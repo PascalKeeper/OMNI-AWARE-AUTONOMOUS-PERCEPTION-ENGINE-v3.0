@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OMNI-AWARE v3.0 — Perception Dashboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0f; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+  #header { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: #111118; border-bottom: 1px solid #222233; }
+  #header h1 { font-size: 18px; letter-spacing: 2px; color: #4fc3f7; }
+  #fps { font-size: 24px; font-weight: bold; color: #00e676; }
+  #main { display: grid; grid-template-columns: 2fr 1fr; height: calc(100vh - 60px); }
+  #canvas-wrap { position: relative; background: #000; }
+  #frameCanvas { width: 100%; height: 100%; object-fit: contain; }
+  #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+  #side { display: flex; flex-direction: column; gap: 16px; padding: 16px; overflow-y: auto; }
+  .panel { background: #111118; border: 1px solid #222233; border-radius: 8px; padding: 16px; }
+  .panel h2 { font-size: 13px; letter-spacing: 1px; color: #4fc3f7; margin-bottom: 12px; text-transform: uppercase; }
+  #hazardFeed { list-style: none; max-height: 300px; overflow-y: auto; }
+  #hazardFeed li { padding: 8px; margin-bottom: 6px; border-left: 3px solid #ff5252; background: #1a1a24; border-radius: 0 4px 4px 0; font-size: 13px; }
+  #hazardFeed li.low { border-left-color: #00e676; }
+  #hazardFeed li.medium { border-left-color: #ffab40; }
+  #hazardFeed li.high { border-left-color: #ff5252; }
+  #hazardFeed li.critical { border-left-color: #ff1744; background: #2a1018; }
+  #grokBox { background: #0d1117; border-radius: 4px; padding: 12px; font-size: 12px; font-family: monospace; white-space: pre-wrap; color: #8be9fd; max-height: 200px; overflow-y: auto; }
+  #decisionBanner { font-size: 20px; font-weight: bold; text-align: center; padding: 16px; border-radius: 8px; }
+  #decisionBanner.waterfall { background: #0d3b2e; color: #00e676; }
+  #decisionBanner.cliff { background: #3b0d0d; color: #ff5252; }
+  .stat { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid #1a1a24; }
+  .stat span:last-child { color: #4fc3f7; font-weight: bold; }
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>OMNI-AWARE v3.0</h1>
+  <div id="fps">0 FPS</div>
+</div>
+<div id="main">
+  <div id="canvas-wrap">
+    <canvas id="frameCanvas"></canvas>
+    <canvas id="overlay"></canvas>
+  </div>
+  <div id="side">
+    <div class="panel">
+      <h2>Live Stats</h2>
+      <div class="stat"><span>Pipeline latency</span><span id="latency">—</span></div>
+      <div class="stat"><span>Local hazards</span><span id="localHazards">0</span></div>
+      <div class="stat"><span>Grok escalations</span><span id="escalations">0</span></div>
+      <div class="stat"><span>Source</span><span id="source">local</span></div>
+    </div>
+    <div class="panel">
+      <h2>Hazard Feed</h2>
+      <ul id="hazardFeed"></ul>
+    </div>
+    <div class="panel">
+      <h2>Grok Response</h2>
+      <div id="grokBox">Waiting for escalation...</div>
+    </div>
+    <div class="panel">
+      <h2>Decision</h2>
+      <div id="decisionBanner">NO HAZARD</div>
+    </div>
+  </div>
+</div>
+<script>
+const canvas = document.getElementById('frameCanvas');
+const overlay = document.getElementById('overlay');
+const ctx = canvas.getContext('2d');
+const octx = overlay.getContext('2d);
+
+function resize() {
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+  overlay.width = overlay.offsetWidth;
+  overlay.height = overlay.offsetHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Simulated telemetry stream (replace with WebSocket in production)
+let frame = 0;
+const rng = () => Math.random();
+
+function render() {
+  frame++;
+  const W = canvas.width, H = canvas.height;
+  // draw road scene
+  ctx.fillStyle = '#1a1a24';
+  ctx.fillRect(0, 0, W, H);
+  // road
+  ctx.fillStyle = '#333344';
+  ctx.beginPath();
+  ctx.moveTo(W*0.3, H); ctx.lineTo(W*0.7, H);
+  ctx.lineTo(W*0.55, 0); ctx.lineTo(W*0.45, 0);
+  ctx.closePath(); ctx.fill();
+  // lane lines
+  ctx.strokeStyle = '#ffeb3b'; ctx.lineWidth = 3;
+  ctx.setLineDash([20, 15]);
+  ctx.beginPath(); ctx.moveTo(W*0.5, H); ctx.lineTo(W*0.5, 0); ctx.stroke();
+  ctx.setLineDash([]);
+  // random hazard injection
+  if (frame % 90 === 0) {
+    const hx = W * (0.35 + rng() * 0.3), hy = H * (0.4 + rng() * 0.4);
+    const size = 20 + rng() * 40;
+    octx.fillStyle = 'rgba(255, 82, 82, 0.6)';
+    octx.beginPath(); octx.arc(hx, hy, size, 0, Math.PI*2); octx.fill();
+    addHazard({ type: rng() > 0.5 ? 'boulder' : 'log', threat: rng() > 0.6 ? 'high' : 'medium', x: hx, y: hy, size });
+  }
+  // FPS
+  if (frame % 30 === 0) {
+    document.getElementById('fps').textContent = Math.round(1000 / 16.67) + ' FPS';
+    document.getElementById('latency').textContent = (4.6 + rng()*2).toFixed(1) + ' ms';
+  }
+  requestAnimationFrame(render);
+}
+
+function addHazard(h) {
+  const feed = document.getElementById('hazardFeed);
+  const li = document.createElement('li');
+  li.className = h.threat;
+  li.textContent = `${h.type.toUpperCase()} — threat: ${h.threat} — (${Math.round(h.x)}, ${Math.round(h.y)})`;
+  feed.insertBefore(li, feed.firstChild);
+  if (feed.children.length > 20) feed.removeChild(feed.lastChild);
+  document.getElementById('localHazards').textContent = parseInt(document.getElementById('localHazards').textContent) + 1;
+  // simulate Grok escalation
+  setTimeout(() => {
+    document.getElementById('escalations').textContent = parseInt(document.getElementById('escalations').textContent) + 1;
+    document.getElementById('grokBox').textContent = JSON.stringify({ hazard_type: h.type, threat_level: h.threat, estimated_size_m: (h.size/40).toFixed(1), recommended_action: `Avoid ${h.type}`, confidence: 0.85, source: 'grok' }, null, 2);
+    document.getElementById('source').textContent = 'grok';
+  }, 300);
+}
+
+render();
+</script>
+</body>
+</html>
