@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OMNI-AWARE v1.2.0-GOLD</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background-color: #0f172a; color: #e2e8f0; overflow: hidden; font-family: monospace; }
+  .crosshair-v { width: 1px; height: 100%; background: rgba(59,130,246,0.2); }
+  .crosshair-h { width: 100%; height: 1px; background: rgba(59,130,246,0.2); position: absolute; }
+</style>
+</head>
+<body class="h-screen flex flex-col">
+
+<header class="flex items-center justify-between px-6 py-3 border-b border-slate-800 bg-slate-900/80">
+  <div class="flex items-center gap-4">
+    <div class="bg-slate-800 p-2 rounded-lg border border-slate-700">
+      <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+    </div>
+    <div>
+      <h1 class="text-xl font-bold tracking-widest text-blue-400">OMNI-AWARE</h1>
+      <p class="text-[10px] text-slate-400 tracking-wider">AUTONOMOUS PERCEPTION ENGINE V1.2.0-GOLD</p>
+    </div>
+  </div>
+  <div class="flex items-center gap-6">
+    <div class="flex flex-col items-end"><span class="text-[10px] text-slate-500 uppercase">Target Architecture</span><span class="text-xs font-bold text-slate-300">CPU-BOUND FUSION</span></div>
+    <div class="h-8 w-px bg-slate-800"></div>
+    <div class="flex flex-col items-center"><span class="text-[10px] text-slate-500 uppercase">System Status</span><span id="statusVal" class="text-xs font-bold text-yellow-500">STANDBY</span></div>
+    <div class="h-8 w-px bg-slate-800"></div>
+    <button id="toggleBtn" class="flex items-center gap-2 px-6 py-2 rounded uppercase text-xs font-bold tracking-widest bg-blue-600 text-white hover:bg-blue-500">INITIALIZE</button>
+  </div>
+</header>
+
+<main class="flex-1 grid grid-cols-12 overflow-hidden">
+  <div class="col-span-3 bg-slate-900/95 border-r border-slate-800 p-5 flex flex-col gap-6 overflow-y-auto">
+    <div class="relative h-48 flex items-center justify-center border border-slate-800 bg-slate-950 rounded-lg">
+      <div class="text-center z-10"><div id="speedVal" class="text-7xl font-black text-white tracking-tighter">0</div><div class="text-xs text-blue-500 mt-1 font-bold tracking-widest">KM/H</div></div>
+      <svg class="absolute inset-0 w-full h-full -rotate-90 pointer-events-none p-4">
+        <circle cx="50%" cy="50%" r="42%" stroke="#0f172a" stroke-width="6" fill="none"/>
+        <circle id="speedRing" cx="50%" cy="50%" r="42%" stroke="#0ea5e9" stroke-width="6" fill="none" stroke-dasharray="264" stroke-dashoffset="264" stroke-linecap="butt"/>
+      </svg>
+    </div>
+    <div class="space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+        <span class="text-[10px] uppercase tracking-widest text-slate-400">Hardware Telemetry</span>
+        <span id="cpuTempVal" class="text-[10px] text-slate-500">45.0°C</span>
+      </div>
+      <div id="healthBars"></div>
+    </div>
+    <div class="mt-auto bg-slate-950 p-4 rounded border border-slate-800">
+      <div class="flex items-center justify-between mb-3"><span class="text-[10px] tracking-widest text-yellow-500 font-bold uppercase">KWH RESERVE</span><span id="batteryVal" class="text-sm font-black">98%</span></div>
+      <div class="h-2 w-full bg-slate-800 rounded"><div class="h-full bg-yellow-500 w-[98%] rounded"></div></div>
+    </div>
+  </div>
+
+  <div class="col-span-6 relative bg-black flex flex-col">
+    <div class="absolute top-4 left-4 z-20 flex flex-col gap-2">
+      <div class="bg-black/80 border border-slate-800 px-3 py-1.5 rounded-sm text-[10px] text-green-400 font-bold uppercase tracking-widest flex items-center gap-2"><div class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div><span id="fusionVal">FUSION STANDBY</span></div>
+      <div id="ttsBadge" class="hidden bg-black/80 border border-blue-800 px-3 py-1.5 rounded-sm text-[10px] text-blue-400 font-bold uppercase tracking-widest flex items-center gap-2 animate-pulse">SYNTHESIS STREAMING</div>
+    </div>
+    <div class="absolute top-4 right-4 z-20 flex gap-2">
+      <div class="bg-black/80 border border-red-900/50 px-3 py-1.5 rounded-sm text-[10px] text-red-500 font-bold uppercase tracking-widest">SPECTRUM LOCK: 70/70/7</div>
+      <div class="bg-black/80 border border-slate-800 px-3 py-1.5 rounded-sm text-[10px] text-slate-400 font-bold uppercase tracking-widest">LATENCY: 1.2ms</div>
+    </div>
+    <div class="absolute inset-0 pointer-events-none z-10 flex items-center justify-center opacity-30">
+      <div class="crosshair-v"></div><div class="crosshair-h"></div>
+      <div class="w-64 h-64 border border-blue-500/20 rounded-full relative">
+        <div class="w-4 h-4 border-t border-l border-blue-500/50 absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2"></div>
+        <div class="w-4 h-4 border-t border-r border-blue-500/50 absolute top-0 right-0 translate-x-1/2 -translate-y-1/2"></div>
+        <div class="w-4 h-4 border-b border-l border-blue-500/50 absolute bottom-0 left-0 -translate-x-1/2 translate-y-1/2"></div>
+        <div class="w-4 h-4 border-b border-r border-blue-500/50 absolute bottom-0 right-0 translate-x-1/2 translate-y-1/2"></div>
+      </div>
+    </div>
+    <canvas id="mainCanvas" width="1000" height="600" class="w-full h-full object-cover z-0"></canvas>
+    <div class="absolute bottom-4 left-0 right-0 flex justify-center gap-6 pointer-events-none z-20">
+      <div class="text-[10px] font-bold tracking-widest text-slate-400 bg-black/80 px-4 py-1.5 rounded-sm border border-slate-800">TRACKED VECTORS: <span id="trackedVal" class="text-blue-400">0</span></div>
+      <div class="text-[10px] font-bold tracking-widest text-slate-400 bg-black/80 px-4 py-1.5 rounded-sm border border-slate-800">BUS: <span class="text-yellow-500">BYPASSED</span></div>
+    </div>
+  </div>
+
+  <div class="col-span-3 bg-slate-900/95 border-l border-slate-800 flex flex-col">
+    <div class="p-5 border-b border-slate-800">
+      <div class="flex items-center justify-between mb-5">
+        <span class="text-[10px] uppercase tracking-widest text-blue-400 font-bold">Neural Co-Pilot</span>
+        <button id="voiceBtn" class="p-2 rounded bg-blue-600/20 text-blue-400 border border-blue-800"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg></button>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <button id="analyzeBtn" class="bg-slate-950 hover:bg-slate-800 text-[10px] font-bold tracking-widest py-3 rounded border border-slate-800 text-slate-300 flex flex-col items-center gap-2"><svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>ANALYZE</button>
+        <button id="reportBtn" class="bg-slate-950 hover:bg-slate-800 text-[10px] font-bold tracking-widest py-3 rounded border border-slate-800 text-slate-300 flex flex-col items-center gap-2"><svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>REPORT</button>
+      </div>
+    </div>
+    <div class="flex-1 flex flex-col min-h-0">
+      <div class="bg-slate-950 px-5 py-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 flex justify-between"><span>Direct Interface</span><span class="text-blue-500">Director Level</span></div>
+      <div id="chatHistory" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-900/50"></div>
+      <form id="chatForm" class="p-4 border-t border-slate-800 bg-slate-950 flex gap-2">
+        <input id="chatInput" type="text" placeholder="Enter command..." class="flex-1 bg-slate-900 border border-slate-800 rounded text-xs px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-600 placeholder:text-slate-600">
+        <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg></button>
+      </form>
+    </div>
+    <div class="h-40 border-t border-slate-800 flex flex-col bg-slate-950 font-mono">
+      <div class="flex justify-between items-center p-2 border-b border-slate-900"><span class="text-[9px] uppercase tracking-widest text-slate-500">System Console</span><span id="tDelta" class="text-[9px] text-slate-600">0.0</span></div>
+      <div id="logContainer" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const CANVAS_W = 1000, CANVAS_H = 600;
+const RED_LOCK = 0.70, GREEN_LOCK = 0.70, BLUE_LOCK = 0.07;
+
+let active = false, speed = 0, speedRef = 0, battery = 98, cpuTemp = 45;
+let entities = [], logs = [], chatHistory = [], voiceMode = true;
+let lastTime = 0, tickCounter = 0;
+let health = { camera: 100, lidar: 100, radar: 100, compute: 42, heartbeat: 99 };
+
+const canvas = document.getElementById('mainCanvas'), ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+function addLog(msg, level) {
+  const ts = new Date().toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit', fractionalSecondDigits:3});
+  logs.unshift({ ts, level, msg });
+  if (logs.length > 50) logs.pop();
+  renderLogs();
+}
+function renderLogs() {
+  document.getElementById('logContainer').innerHTML = logs.map(l =>
+    `<div class="flex gap-2 text-[10px] leading-none"><span class="text-slate-600">[${l.ts}]</span><span class="${l.level==='CRIT'?'text-red-500':l.level==='WARN'?'text-yellow-500':'text-blue-500'}">${l.level}</span><span class="text-slate-400">${l.msg}</span></div>`).join('');
+}
+
+function applySpectrumLock(ctx, w, h) {
+  const img = ctx.getImageData(0, 0, w, h), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i] *= RED_LOCK; d[i+1] *= GREEN_LOCK; d[i+2] *= BLUE_LOCK;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function spawnEntity() {
+  const roll = Math.random();
+  const type = roll > 0.85 ? 'PEDESTRIAN' : roll > 0.6 ? 'OBSTACLE' : 'CAR';
+  entities.push({ id: Math.floor(Math.random()*1e6), type, x: (Math.random()*3-1.5)*60, z: 250,
+    speed: type==='CAR' ? Math.random()*30+30 : 0,
+    width: type==='CAR'?2.8:type==='PEDESTRIAN'?0.8:1.5, height: type==='CAR'?2.2:2.2,
+    detectedBy: [], confidence: 0 });
+  addLog(`Sensor lock acquired on ${type} at 250m`, 'INFO);
+}
+
+function updateSim(dt) {
+  if (!active) return;
+  if (speedRef < 90) speedRef += 0.8 * dt;
+  speed = Math.floor(speedRef);
+  if (Math.random() < 0.015) spawnEntity();
+  entities.forEach(e => {
+    e.z -= ((speedRef/3.6) - (e.speed/3.6)) * dt * 60;
+    const s = [];
+    if (e.z < 200) s.push('RADAR'); if (e.z < 150) s.push('CAMERA'); if (e.z < 100) s.push('LIDAR);
+    e.detectedBy = s;
+    e.confidence = Math.min(0.99, s.length*0.3 + (100/(e.z+1))*0.1);
+  });
+  entities = entities.filter(e => { if (e.z <= -10) { addLog(`Object ID:${e.id} cleared parameters`, 'INFO'); return false; } return true; });
+  const danger = entities.find(e => e.z < 30 && e.z > 0 && Math.abs(e.x) < 25);
+  if (danger) addLog(`COLLISION VECTOR: ${danger.type} at ${danger.z.toFixed(1)}m. Emergency protocol standby.`, 'CRIT);
+}
+
+function draw(ctx) {
+  ctx.fillStyle = '#111827'; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  const horizonY = CANVAS_H * 0.4, centerX = CANVAS_W / 2;
+  ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 1;
+  for (let i = -15; i <= 15; i++) { ctx.beginPath(); ctx.moveTo(centerX+i*8, horizonY); ctx.lineTo(centerX+i*250, CANVAS_H); ctx.stroke(); }
+  for (let i = 0; i < 25; i++) { const y = horizonY + Math.pow(i/25, 2.5)*(CANVAS_H-horizonY); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CANVAS_W,y); ctx.stroke(); }
+  ctx.strokeStyle = '#0ea5e9'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, horizonY); ctx.lineTo(CANVAS_W, horizonY); ctx.stroke();
+  entities.sort((a,b) => b.z - a.z).forEach(e => {
+    const pf = 1 - (e.z/250); if (pf < 0) return;
+    const dy = horizonY + pf*(CANVAS_H-horizonY), dx = centerX + e.x*pf*5;
+    const dw = e.width*25*pf, dh = e.height*25*pf;
+    let color = e.type==='CAR'?'#34d399':e.type==='PEDESTRIAN'?'#fbbf24':'#f87171';
+    ctx.strokeStyle = color; ctx.lineWidth = 2 + pf*2;
+    ctx.strokeRect(dx-dw/2, dy-dh, dw, dh); ctx.fillStyle = color+'33'; ctx.fillRect(dx-dw/2, dy-dh, dw, dh);
+    if (e.confidence > 0.3) {
+      ctx.fillStyle = '#fff'; ctx.font = `${Math.max(10,10*pf)}px monospace`;
+      ctx.fillText(`ID:${e.id}`, dx-dw/2, dy-dh-16); ctx.fillText(`${e.type} [${e.z.toFixed(0)}m]`, dx-dw/2, dy-dh-4);
+      let off = 0, ns = Math.max(2, 4*pf);
+      if (e.detectedBy.includes('LIDAR')) { ctx.fillStyle='#a855f7'; ctx.fillRect(dx-dw/2, dy-dh-24, ns, ns); off += ns+2; }
+      if (e.detectedBy.includes('CAMERA')) { ctx.fillStyle='#34d399'; ctx.fillRect(dx-dw/2+off, dy-dh-24, ns, ns); off += ns+2; }
+      if (e.detectedBy.includes('RADAR')) { ctx.fillStyle='#f97316'; ctx.fillRect(dx-dw/2+off, dy-dh-24, ns, ns); }
+    }
+  });
+  ctx.fillStyle = '#020617'; ctx.beginPath(); ctx.moveTo(centerX-150, CANVAS_H); ctx.lineTo(centerX-80, CANVAS_H-60); ctx.lineTo(centerX+80, CANVAS_H-60); ctx.lineTo(centerX+150, CANVAS_H); ctx.fill();
+  ctx.strokeStyle = '#334155'; ctx.lineWidth = 2; ctx.stroke();
+  applySpectrumLock(ctx, CANVAS_W, CANVAS_H);
+}
+
+function tick(time) {
+  if (lastTime === 0) lastTime = time;
+  const dt = (time - lastTime)/1000; lastTime = time; tickCounter++;
+  updateSim(dt);
+  if (canvas) draw(ctx);
+  if (active && tickCounter % 30 === 0) {
+    health.compute = Math.min(100, Math.max(30, health.compute + (Math.random()*14-7)));
+    health.heartbeat = Math.min(100, Math.max(85, health.heartbeat + (Math.random()*4-2)));
+    cpuTemp = Math.min(85, Math.max(40, cpuTemp + (Math.random()*2-1)));
+    document.getElementById('cpuTempVal').textContent = cpuTemp.toFixed(1)+'°C';
+    renderHealthBars();
+  }
+  document.getElementById('speedVal').textContent = speed;
+  document.getElementById('speedRing').setAttribute('stroke-dashoffset', 264 - (264*speed)/140);
+  document.getElementById('trackedVal').textContent = active ? entities.length : 0;
+  document.getElementById('tDelta').textContent = speed.toFixed(1);
+  requestAnimationFrame(tick);
+}
+
+function renderHealthBars() {
+  const items = [
+    {label:'OPTICAL ARRAY', val:health.camera, color:'text-green-400', bar:'bg-green-500'},
+    {label:'LIDAR CLOUD', val:health.lidar, color:'text-purple-400', bar:'bg-purple-500'},
+    {label:'DOPPLER RADAR', val:health.radar, color:'text-orange-400', bar:'bg-orange-500'},
+    {label:'NEURAL COMPUTE', val:health.compute, color:'text-blue-400', bar:'bg-blue-500'},
+    {label:'SYS HEARTBEAT', val:health.heartbeat, color:'text-red-400', bar:'bg-red-500'},
+  ];
+  document.getElementById('healthBars').innerHTML = items.map(s => `
+    <div><div class="flex justify-between text-[10px] mb-1.5 font-bold tracking-wider"><span class="${s.color}">${s.label}</span><span class="text-slate-300">${s.val.toFixed(0)}%</span></div>
+    <div class="h-1 w-full bg-slate-800 rounded-none overflow-hidden"><div class="h-full ${s.bar}" style="width:${s.val}%"></div></div></div>`).join('');
+}
+renderHealthBars();
+
+document.getElementById('toggleBtn').addEventListener('click', () => {
+  active = !active;
+  const btn = document.getElementById('toggleBtn);
+  btn.textContent = active ? 'DISENGAGE' : 'INITIALIZE';
+  btn.className = active ? 'flex items-center gap-2 px-6 py-2 rounded uppercase text-xs font-bold tracking-widest bg-red-950 text-red-500 border border-red-900 hover:bg-red-900' : 'flex items-center gap-2 px-6 py-2 rounded uppercase text-xs font-bold tracking-widest bg-blue-600 text-white hover:bg-blue-500';
+  document.getElementById('statusVal').textContent = active ? 'ONLINE' : 'STANDBY';
+  document.getElementById('statusVal').className = active ? 'text-xs font-bold text-green-400' : 'text-xs font-bold text-yellow-500';
+  document.getElementById('fusionVal').textContent = active ? 'FUSION LAYER ACTIVE' : 'FUSION STANDBY';
+  if (active) { addLog('Omni-Aware Kernel Boot Sequence Initiated','INFO'); addLog('Bypassing GPU Bus. CPU Spectrum Lock engaged.','WARN'); addLog('Lidar array spinning up...','INFO'); addLog('Neural Networks loaded. Vision parameters set.','INFO'); }
+  else { addLog('System Standby Initiated. Purging buffers.','WARN'); speedRef = 0; speed = 0; entities = []; }
+});
+
+document.getElementById('voiceBtn').addEventListener('click', () => {
+  voiceMode = !voiceMode;
+  const btn = document.getElementById('voiceBtn);
+  btn.className = voiceMode ? 'p-2 rounded bg-blue-600/20 text-blue-400 border border-blue-800' : 'p-2 rounded bg-slate-800 text-slate-500 border border-slate-700';
+});
+
+document.getElementById('chatForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const input = document.getElementById('chatInput'), msg = input.value.trim();
+  if (!msg) return;
+  chatHistory.push({role:'user', text:msg}); input.value = '';
+  renderChat();
+  chatHistory.push({role:'ai', text:'[Simulated] Command acknowledged, Project Director. Spectrum lock nominal.'});
+  renderChat();
+});
+function renderChat() {
+  document.getElementById('chatHistory').innerHTML = chatHistory.map(m =>
+    `<div class="flex ${m.role==='user'?'justify-end':'justify-start'}"><div class="max-w-[85%] rounded px-3 py-2 text-[11px] ${m.role==='user'?'bg-blue-600 text-white':'bg-slate-950 text-slate-300 border border-slate-800'}">${m.text}</div></div>`).join('');
+}
+
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
