@@ -44,6 +44,13 @@ Perception and advisory layer only. No actuation authority.
   grip < 0.6 -> 30% speed reduction; wet > 0.5 -> 15% reduction.
 - **Status**: Unit-tested.
 
+### 2.8 UV Fluorescence Sensing (Future Hardware)
+- **Proposal**: UV illuminator + sensor without IR cut filter for
+  night-vision pedestrian detection via clothing fluorescence.
+- **Risk**: Eye safety, false positives from non-clothing fluorescers,
+  range limits, cost.
+- **Status**: PROPOSAL ONLY. See FUTURE_HARDWARE.md.
+
 ## 3. Validation Plan
 
 1. Benchmark against nuScenes/KITTI.
