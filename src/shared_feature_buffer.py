@@ -55,6 +55,11 @@ class SharedFeatureBuffer:
             "edge_strength": raw_frame.get("edge_strength", 0.0),
             "timestamp_ms": timestamp_ms,
         }
+        # Extra keys stay as references so a head can read the filtered
+        # image without a second copy of the frame.
+        for key, value in raw_frame.items():
+            if key not in self._buffer:
+                self._buffer[key] = value
         return FeatureHandle(
             buffer_id=self._buffer_id,
             timestamp_ms=timestamp_ms,

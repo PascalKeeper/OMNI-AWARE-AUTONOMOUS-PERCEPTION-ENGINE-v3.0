@@ -1,0 +1,225 @@
+{
+  "scenes": 10,
+  "frames": 404,
+  "true_positives": 48,
+  "false_positives": 8662,
+  "false_negatives": 16974,
+  "missed_detections": 16974,
+  "precision": 0.006,
+  "recall": 0.003,
+  "f1": 0.004,
+  "latency_p50_ms": 44.2,
+  "latency_p99_ms": 60.28,
+  "by_type": {
+    "vehicle": {
+      "gt": 8268,
+      "tp": 0,
+      "recall": 0.0
+    },
+    "pedestrian": {
+      "gt": 5040,
+      "tp": 0,
+      "recall": 0.0
+    },
+    "obstacle": {
+      "gt": 3714,
+      "tp": 48,
+      "recall": 0.013
+    }
+  },
+  "by_range_m": {
+    "0-20": {
+      "gt": 5206,
+      "tp": 48,
+      "recall": 0.009
+    },
+    "20-50": {
+      "gt": 8779,
+      "tp": 0,
+      "recall": 0.0
+    },
+    "50-80": {
+      "gt": 2627,
+      "tp": 0,
+      "recall": 0.0
+    },
+    "80-120": {
+      "gt": 375,
+      "tp": 0,
+      "recall": 0.0
+    },
+    "120-150": {
+      "gt": 32,
+      "tp": 0,
+      "recall": 0.0
+    },
+    "150+": {
+      "gt": 3,
+      "tp": 0,
+      "recall": 0.0
+    }
+  },
+  "gt_beyond_150m": 3,
+  "tp_beyond_150m": 0,
+  "scene_frames": {
+    "scene-0061": {
+      "token": "cc8c0bf57f984915a77078b10eb33198",
+      "frames": 39
+    },
+    "scene-0103": {
+      "token": "fcbccedd61424f1b85dcbf8f897f9754",
+      "frames": 40
+    },
+    "scene-0553": {
+      "token": "6f83169d067343658251f72e1dd17dbc",
+      "frames": 41
+    },
+    "scene-0655": {
+      "token": "bebf5f5b2a674631ab5c88fd1aa9e87a",
+      "frames": 41
+    },
+    "scene-0757": {
+      "token": "2fc3753772e241f2ab2cd16a784cc680",
+      "frames": 41
+    },
+    "scene-0796": {
+      "token": "c5224b9b454b4ded9b5d2d2634bbda8a",
+      "frames": 40
+    },
+    "scene-0916": {
+      "token": "325cef682f064c55a255f2625c533b75",
+      "frames": 41
+    },
+    "scene-1077": {
+      "token": "d25718445d89453381c659b9c8734939",
+      "frames": 41
+    },
+    "scene-1094": {
+      "token": "de7d80a1f5fb4c3e82ce8a4f213b450a",
+      "frames": 40
+    },
+    "scene-1100": {
+      "token": "e233467e827140efa4b42d2b4c435855",
+      "frames": 40
+    }
+  },
+  "skipped_samples": 0,
+  "skipped_annotations": 1516,
+  "skipped_categories": {
+    "vehicle.bicycle": 243,
+    "vehicle.bus.rigid": 353,
+    "vehicle.construction": 196,
+    "movable_object.pushable_pullable": 82,
+    "vehicle.motorcycle": 471,
+    "static_object.bicycle_rack": 54,
+    "vehicle.trailer": 60,
+    "vehicle.bus.bendy": 57
+  },
+  "mapped_categories": {
+    "pedestrian": 5040,
+    "vehicle": 8268,
+    "obstacle": 3714
+  },
+  "ransac_outlier_fraction": 0.694,
+  "baselines": {
+    "simulated_detector_f1": 0.981,
+    "simulated_detector_precision": 0.963,
+    "simulated_detector_recall": 1.0,
+    "real_pipeline_sim_f1": 0.722,
+    "real_pipeline_sim_precision": 0.92,
+    "real_pipeline_sim_recall": 0.593
+  },
+  "examples": {
+    "highest_fp": {
+      "scene_name": "scene-0757",
+      "scene_description": "Arrive at busy intersection, bus, wait at intersection, bicycle, peds",
+      "sample_token": "a9def8f915cf4bfe9c74b864384ec6c7",
+      "image_path": "C:\\data\\sets\\nuscenes\\samples/CAM_FRONT/n008-2018-08-30-15-16-55-0400__CAM_FRONT__1535657116612404.jpg",
+      "timestamp": 1535657116649423,
+      "tp": 0,
+      "fp": 33,
+      "fn": 12,
+      "n_gt": 12,
+      "n_det": 33,
+      "gt_types": "vehicle,vehicle,obstacle,vehicle,vehicle,vehicle,vehicle,obstacle,vehicle,pedestrian,vehicle,vehicle",
+      "max_gt_range_m": 52.18,
+      "n_gt_beyond_150": 0,
+      "n_pedestrian": 1,
+      "det_range_min_m": 12.12,
+      "det_range_max_m": 13.72
+    },
+    "highest_fn": {
+      "scene_name": "scene-0061",
+      "scene_description": "Parked truck, construction, intersection, turn left, following a van",
+      "sample_token": "b26e791522294bec90f86fd72226e35c",
+      "image_path": "C:\\data\\sets\\nuscenes\\samples/CAM_FRONT/n015-2018-07-24-11-22-45+0800__CAM_FRONT__1532402937162460.jpg",
+      "timestamp": 1532402937198682,
+      "tp": 2,
+      "fp": 16,
+      "fn": 147,
+      "n_gt": 149,
+      "n_det": 18,
+      "gt_types": "pedestrian,pedestrian,vehicle,pedestrian,pedestrian,pedestrian,vehicle,pedestrian,obstacle,obstacle,pedestrian,obstacle,obstacle,pedestrian,pedestrian,obstacle,obstacle,obstacle,pedestrian,obstacle,obstacle,pedestrian,pedestrian,obstacle,vehicle,pedestrian,obstacle,vehicle,vehicle,obstacle,pedestrian,obstacle,obstacle,pedestrian,obstacle,obstacle,pedestrian,obstacle,obstacle,obstacle,pedestrian,obstacle,obstacle,pedestrian,pedestrian,obstacle,obstacle,obstacle,pedestrian,obstacle,obstacle,obstacle,obstacle,obstacle,obstacle,obstacle,obstacle,vehicle,obstacle,pedestrian,pedestrian,pedestrian,obstacle,obstacle,obstacle,pedestrian,obstacle,obstacle,obstacle,obstacle,obstacle,obstacle,obstacle,obstacle,obstacle,obstacle,obstacle,pedestrian,obstacle,obstacle,vehicle,obstacle,obstacle,obstacle,vehicle,pedestrian,pedestrian,pedestrian,pedestrian,pedestrian,vehicle,pedestrian,pedestrian,pedestrian,pedestrian,pedestrian,obstacle,obstacle,obstacle,pedestrian,obstacle,vehicle,obstacle,obstacle,obstacle,obstacle,obstacle,obstacle,vehicle,vehicle,obstacle,obstacle,vehicle,vehicle,obstacle,pedestrian,obstacle,obstacle,pedestrian,obstacle,obstacle,obstacle,obstacle,pedestrian,obstacle,obstacle,obstacle,obstacle,obstacle,obstacle,obstacle,vehicle,obstacle,pedestrian,obstacle,obstacle,obstacle,pedestrian,obstacle,obstacle,obstacle,obstacle,obstacle,pedestrian,obstacle,obstacle,pedestrian,obstacle,obstacle",
+      "max_gt_range_m": 73.01,
+      "n_gt_beyond_150": 0,
+      "n_pedestrian": 43,
+      "det_range_min_m": 12.12,
+      "det_range_max_m": 13.59
+    },
+    "beyond_150m": {
+      "scene_name": "scene-0553",
+      "scene_description": "Wait at intersection, bicycle, large truck, peds crossing crosswalk, ped with stroller",
+      "sample_token": "8687ba92abd3406aa797115b874ebeba",
+      "image_path": "C:\\data\\sets\\nuscenes\\samples/CAM_FRONT/n008-2018-08-28-16-43-51-0400__CAM_FRONT__1535489296012404.jpg",
+      "timestamp": 1535489296047917,
+      "tp": 0,
+      "fp": 23,
+      "fn": 35,
+      "n_gt": 35,
+      "n_det": 23,
+      "gt_types": "pedestrian,pedestrian,pedestrian,vehicle,pedestrian,obstacle,obstacle,obstacle,vehicle,obstacle,obstacle,vehicle,vehicle,vehicle,vehicle,pedestrian,obstacle,obstacle,vehicle,vehicle,pedestrian,obstacle,obstacle,obstacle,obstacle,pedestrian,vehicle,vehicle,vehicle,pedestrian,vehicle,pedestrian,pedestrian,obstacle,vehicle",
+      "max_gt_range_m": 158.47,
+      "n_gt_beyond_150": 2,
+      "n_pedestrian": 10,
+      "det_range_min_m": 12.12,
+      "det_range_max_m": 13.66
+    },
+    "pedestrian": {
+      "scene_name": "scene-0061",
+      "scene_description": "Parked truck, construction, intersection, turn left, following a van",
+      "sample_token": "ca9a282c9e77460f8360f564131a8af5",
+      "image_path": "C:\\data\\sets\\nuscenes\\samples/CAM_FRONT/n015-2018-07-24-11-22-45+0800__CAM_FRONT__1532402927612460.jpg",
+      "timestamp": 1532402927647951,
+      "tp": 2,
+      "fp": 27,
+      "fn": 63,
+      "n_gt": 65,
+      "n_det": 29,
+      "gt_types": "pedestrian,pedestrian,vehicle,pedestrian,obstacle,pedestrian,vehicle,pedestrian,obstacle,obstacle,pedestrian,pedestrian,pedestrian,pedestrian,obstacle,vehicle,pedestrian,vehicle,vehicle,pedestrian,obstacle,obstacle,obstacle,obstacle,obstacle,pedestrian,pedestrian,obstacle,pedestrian,pedestrian,obstacle,pedestrian,pedestrian,obstacle,vehicle,obstacle,obstacle,pedestrian,vehicle,obstacle,obstacle,obstacle,vehicle,pedestrian,pedestrian,pedestrian,obstacle,pedestrian,pedestrian,vehicle,pedestrian,pedestrian,pedestrian,pedestrian,pedestrian,pedestrian,obstacle,obstacle,pedestrian,obstacle,obstacle,vehicle,obstacle,obstacle,obstacle",
+      "max_gt_range_m": 81.25,
+      "n_gt_beyond_150": 0,
+      "n_pedestrian": 30,
+      "det_range_min_m": 12.12,
+      "det_range_max_m": 13.66
+    },
+    "true_positive": {
+      "scene_name": "scene-0061",
+      "scene_description": "Parked truck, construction, intersection, turn left, following a van",
+      "sample_token": "ca9a282c9e77460f8360f564131a8af5",
+      "image_path": "C:\\data\\sets\\nuscenes\\samples/CAM_FRONT/n015-2018-07-24-11-22-45+0800__CAM_FRONT__1532402927612460.jpg",
+      "timestamp": 1532402927647951,
+      "tp": 2,
+      "fp": 27,
+      "fn": 63,
+      "n_gt": 65,
+      "n_det": 29,
+      "gt_types": "pedestrian,pedestrian,vehicle,pedestrian,obstacle,pedestrian,vehicle,pedestrian,obstacle,obstacle,pedestrian,pedestrian,pedestrian,pedestrian,obstacle,vehicle,pedestrian,vehicle,vehicle,pedestrian,obstacle,obstacle,obstacle,obstacle,obstacle,pedestrian,pedestrian,obstacle,pedestrian,pedestrian,obstacle,pedestrian,pedestrian,obstacle,vehicle,obstacle,obstacle,pedestrian,vehicle,obstacle,obstacle,obstacle,vehicle,pedestrian,pedestrian,pedestrian,obstacle,pedestrian,pedestrian,vehicle,pedestrian,pedestrian,pedestrian,pedestrian,pedestrian,pedestrian,obstacle,obstacle,pedestrian,obstacle,obstacle,vehicle,obstacle,obstacle,obstacle",
+      "max_gt_range_m": 81.25,
+      "n_gt_beyond_150": 0,
+      "n_pedestrian": 30,
+      "det_range_min_m": 12.12,
+      "det_range_max_m": 13.66
+    },
+    "zero_gt_with_detections": null
+  }
+}
