@@ -1,4 +1,5 @@
 // OMNI-AWARE v3.1 - C++ Reference Port
+// v3.2 adds WifiDensity for occluded presence. The Numba RGB filter is Python-side.
 // Target: Tesla HW4 (ARM Cortex-A76, ~50 TOPS INT8, dedicated ISP)
 // This is a REFERENCE implementation for study, not production Tesla code.
 // Tesla's actual stack is proprietary; this demonstrates the algorithm
@@ -6,13 +7,18 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <chrono>
 #include <cfloat>
 #include <climits>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <functional>
 #include <iomanip>
+#include <map>
 #include <random>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -93,6 +99,12 @@ LineFit ransac_line(const std::vector<std::pair<float, float>>& pts,
 }
 
 // ---------- Temporal persistence (3 hits, 3 misses, 10-frame age) ----------
+struct LabeledMeter {
+    float x;
+    float z;
+    std::string label;
+};
+
 struct TemporalTrack {
     int object_id = 0;
     int hit_count = 0;
@@ -195,6 +207,251 @@ struct TemporalFilter {
             if (t.hit_count >= promote_hits) confirmed.push_back(t);
         return confirmed;
     }
+
+    // Same persistence rules as update(). Each point carries its own label
+    // so an occluded Wi-Fi cell is not renamed to the camera hazard type.
+    std::vector<TemporalTrack> update_labeled(const std::vector<LabeledMeter>& pts, int frame) {
+        std::vector<std::vector<LabeledMeter>> groups;
+        for (const auto& p : pts) {
+            bool placed = false;
+            for (auto& g : groups) {
+                float cx = 0, cz = 0;
+                for (const auto& q : g) { cx += q.x; cz += q.z; }
+                cx /= (float)g.size();
+                cz /= (float)g.size();
+                if (hypot2(p.x - cx, p.z - cz) <= match_m) {
+                    g.push_back(p);
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) groups.push_back({p});
+        }
+        struct Cent { float x; float z; std::string label; };
+        std::vector<Cent> cents;
+        for (const auto& g : groups) {
+            float cx = 0, cz = 0;
+            for (const auto& q : g) { cx += q.x; cz += q.z; }
+            cents.push_back({cx / (float)g.size(), cz / (float)g.size(), g.front().label});
+        }
+        std::vector<int> matched;
+        auto seen = [&](int id) {
+            return std::find(matched.begin(), matched.end(), id) != matched.end();
+        };
+        for (const auto& c : cents) {
+            int best = -1;
+            float best_d = match_m;
+            for (int i = 0; i < (int)tracks.size(); ++i) {
+                if (seen(tracks[i].object_id)) continue;
+                float d = hypot2(c.x - tracks[i].x, c.z - tracks[i].z);
+                if (d < best_d) { best = i; best_d = d; }
+            }
+            if (best < 0) {
+                TemporalTrack t;
+                t.object_id = next_id++;
+                t.hit_count = 1;
+                t.miss_count = 0;
+                t.last_seen_frame = frame;
+                t.x = c.x;
+                t.z = c.z;
+                t.hazard_type = c.label;
+                tracks.push_back(t);
+                matched.push_back(t.object_id);
+            } else {
+                auto& t = tracks[best];
+                t.hit_count += 1;
+                t.miss_count = 0;
+                t.last_seen_frame = frame;
+                t.x = c.x;
+                t.z = c.z;
+                t.hazard_type = c.label;
+                matched.push_back(t.object_id);
+            }
+        }
+        for (auto& t : tracks) {
+            if (seen(t.object_id)) continue;
+            t.miss_count += 1;
+            t.hit_count = 0;
+        }
+        std::vector<TemporalTrack> kept;
+        for (auto& t : tracks) {
+            int age = frame - t.last_seen_frame;
+            if (t.miss_count > drop_misses) continue;
+            if (age >= max_age) continue;
+            kept.push_back(t);
+        }
+        tracks.swap(kept);
+        std::vector<TemporalTrack> confirmed;
+        for (auto& t : tracks)
+            if (t.hit_count >= promote_hits) confirmed.push_back(t);
+        return confirmed;
+    }
+};
+
+// ---------- Wi-Fi beacon density (occluded presence) ----------
+// Identity is RSSI pattern and timing, not the MAC. Linux polls with
+// `iw`, which speaks nl80211. Other platforms inject beacons in tests.
+struct Beacon {
+    std::string mac;
+    float rssi_dbm = -100.f;
+    float aoa_deg = 0.f;
+    bool has_aoa = false;
+};
+
+struct WifiCell {
+    std::string cluster_id;
+    std::string zone;
+    float rssi_dbm = 0;
+    float background_dbm = -85.f;
+    float delta_db = 0;
+    float x = 0;
+    float z = 0;
+    bool occluded = false;
+};
+
+static const char* zone_for_rssi(float rssi) {
+    if (rssi >= -50.f) return "near";
+    if (rssi >= -70.f) return "mid";
+    if (rssi >= -90.f) return "far";
+    return nullptr;
+}
+
+static std::string wifi_cluster_id(const char* zone, float rssi, bool has_aoa, float aoa) {
+    int bin = (int)std::round(rssi / 2.f) * 2;
+    if (!has_aoa) return std::string(zone) + ":" + std::to_string(bin);
+    int aoa_bin = (int)std::round(aoa / 15.f) * 15;
+    return std::string(zone) + ":" + std::to_string(bin) + ":aoa" + std::to_string(aoa_bin);
+}
+
+static void centroid_for_zone(const char* zone, bool has_aoa, float aoa, float& x, float& z) {
+    z = 40.f;
+    if (std::string(zone) == "near") z = 4.f;
+    else if (std::string(zone) == "mid") z = 15.f;
+    x = 0.f;
+    if (has_aoa) x = std::sin(aoa * 3.14159265f / 180.f) * z;
+}
+
+#ifdef __linux__
+static std::vector<Beacon> poll_iw() {
+    std::vector<Beacon> out;
+    FILE* iface = popen("iw dev 2>/dev/null", "r");
+    if (!iface) return out;
+    char buf[512];
+    std::string dev;
+    while (fgets(buf, sizeof(buf), iface)) {
+        std::string line(buf);
+        auto pos = line.find("Interface ");
+        if (pos == std::string::npos) continue;
+        dev = line.substr(pos + 10);
+        while (!dev.empty() && (dev.back() == '\n' || dev.back() == '\r' || dev.back() == ' '))
+            dev.pop_back();
+        break;
+    }
+    pclose(iface);
+    bool dev_ok = !dev.empty();
+    for (unsigned char c : dev) {
+        if (!(std::isalnum(c) || c == '_' || c == '-')) dev_ok = false;
+    }
+    if (!dev_ok) return out;
+    std::string cmd = "iw dev " + dev + " scan 2>/dev/null";
+    FILE* scan = popen(cmd.c_str(), "r");
+    if (!scan) return out;
+    Beacon cur;
+    bool have = false;
+    auto flush = [&]() {
+        if (have) out.push_back(cur);
+        cur = Beacon();
+        have = false;
+    };
+    while (fgets(buf, sizeof(buf), scan)) {
+        std::string line(buf);
+        auto bss = line.find("BSS ");
+        if (bss != std::string::npos && bss < 4) {
+            flush();
+            std::string rest = line.substr(bss + 4);
+            auto sp = rest.find_first_of(" \t(");
+            cur.mac = sp == std::string::npos ? rest : rest.substr(0, sp);
+            while (!cur.mac.empty() && (cur.mac.back() == '\n' || cur.mac.back() == '\r'))
+                cur.mac.pop_back();
+            have = true;
+        } else if (have) {
+            auto sig = line.find("signal:");
+            if (sig != std::string::npos)
+                cur.rssi_dbm = std::strtof(line.c_str() + sig + 7, nullptr);
+        }
+    }
+    flush();
+    pclose(scan);
+    return out;
+}
+#endif
+
+struct WifiDensity {
+    float poll_s = 0.5f;
+    float spike_db = 10.f;
+    bool live = false;
+    std::function<std::vector<Beacon>()> source;
+    std::map<std::string, float> ema;
+    std::vector<Beacon> cached;
+    double last_poll = -1.0e9;
+
+    static double now_s() {
+        return std::chrono::duration<double>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+
+    std::vector<Beacon> read_beacons(double now = -1.0) {
+        if (now < 0) now = now_s();
+        if (!cached.empty() && (now - last_poll) < (double)poll_s) return cached;
+        last_poll = now;
+        if (source) cached = source();
+        else if (live) {
+#ifdef __linux__
+            cached = poll_iw();
+#else
+            cached.clear();
+#endif
+        } else {
+            cached.clear();
+        }
+        return cached;
+    }
+
+    std::vector<WifiCell> observe(const std::vector<Beacon>& beacons, bool visual, bool radar) {
+        std::map<std::string, WifiCell> by_cell;
+        for (const auto& beacon : beacons) {
+            const char* zone = zone_for_rssi(beacon.rssi_dbm);
+            if (!zone) continue;
+            std::string cid = wifi_cluster_id(zone, beacon.rssi_dbm, beacon.has_aoa, beacon.aoa_deg);
+            float x = 0, z = 0;
+            centroid_for_zone(zone, beacon.has_aoa, beacon.aoa_deg, x, z);
+            auto it = by_cell.find(cid);
+            if (it != by_cell.end() && it->second.rssi_dbm >= beacon.rssi_dbm) continue;
+            WifiCell cell;
+            cell.cluster_id = cid;
+            cell.zone = zone;
+            cell.rssi_dbm = beacon.rssi_dbm;
+            cell.x = x;
+            cell.z = z;
+            by_cell[cid] = cell;
+        }
+        std::vector<WifiCell> flagged;
+        const float alpha = 0.05f;
+        const float floor_dbm = -85.f;
+        for (auto& item : by_cell) {
+            WifiCell cell = item.second;
+            float background = floor_dbm;
+            auto prev = ema.find(cell.cluster_id);
+            if (prev != ema.end()) background = prev->second;
+            cell.background_dbm = background;
+            cell.delta_db = cell.rssi_dbm - background;
+            bool camera_match = visual;
+            cell.occluded = cell.delta_db > spike_db && !camera_match && !radar;
+            ema[cell.cluster_id] = (1.f - alpha) * background + alpha * cell.rssi_dbm;
+            flagged.push_back(cell);
+        }
+        return flagged;
+    }
 };
 
 // ---------- Sensor Fusion (v1.0.4 staged ranges) ----------
@@ -257,7 +514,7 @@ struct MapContext {
 
 // ---------- Full Pipeline Step ----------
 struct PipelineResult {
-    float filter_ms, ransac_ms, fusion_ms, map_ms, total_ms;
+    float filter_ms, ransac_ms, fusion_ms, map_ms, wifi_ms, total_ms;
     int fps;
     bool braking;
     float advisory_speed;
@@ -269,7 +526,7 @@ struct PipelineResult {
     MapContext map;
 
     void compute() {
-        total_ms = filter_ms + ransac_ms + fusion_ms + map_ms;
+        total_ms = filter_ms + ransac_ms + fusion_ms + map_ms + wifi_ms;
         fps = total_ms > 0 ? (int)(1000.f / total_ms) : 0;
     }
 
@@ -312,18 +569,29 @@ PipelineResult run_pipeline(const uint8_t* rgb, int w, int h,
         std::chrono::high_resolution_clock::now() - t1).count();
 
     // 3b. Temporal filter between RANSAC and sensor fusion.
+    // Camera outliers and occluded Wi-Fi cells share one update.
     // Promote at 3 consecutive hits, drop after 3 misses or 10 frames.
     static TemporalFilter g_temporal;
+    static WifiDensity g_wifi;
     static int g_frame = 0;
     ++g_frame;
-    std::vector<std::pair<float, float>> outliers_m;
+    std::vector<LabeledMeter> labeled;
     const float meters_per_pixel = 0.05f;
     for (auto& p : pts) {
         float pred = r.road.m * p.first + r.road.b;
         if (std::abs(p.second - pred) >= 2.f)
-            outliers_m.push_back({p.first * meters_per_pixel, p.second * meters_per_pixel});
+            labeled.push_back({p.first * meters_per_pixel, p.second * meters_per_pixel, "obstacle"});
     }
-    auto confirmed = g_temporal.update(outliers_m, g_frame, "obstacle");
+    auto tw = std::chrono::high_resolution_clock::now();
+    auto beacons = g_wifi.read_beacons();
+    auto cells = g_wifi.observe(beacons, false, false);
+    for (auto& cell : cells) {
+        if (!cell.occluded) continue;
+        labeled.push_back({cell.x, cell.z, "occluded"});
+    }
+    r.wifi_ms = std::chrono::duration<float, std::milli>(
+        std::chrono::high_resolution_clock::now() - tw).count();
+    auto confirmed = g_temporal.update_labeled(labeled, g_frame);
     r.confirmed_tracks = (int)confirmed.size();
 
     // 4. Sensor fusion + braking
@@ -362,11 +630,13 @@ void mock_hw4_benchmark(int n_frames = 1000) {
     MapContext map; map.curvature = 0.01f; map.sight_distance = 80;
 
     std::vector<float> frame_times;
+    PipelineResult last{};
     for (int i = 0; i < n_frames; ++i) {
         auto t0 = std::chrono::high_resolution_clock::now();
         auto r = run_pipeline(rgb.data(), w, h, ents, map, 0.7f, 0.3f,
                               0.2f, 0.1f, 0.5f, 0.2f, 0.1f);
         frame_times.push_back(r.total_ms);
+        last = r;
     }
     std::sort(frame_times.begin(), frame_times.end());
     float mean = 0; for (float t : frame_times) mean += t; mean /= n_frames;
@@ -375,6 +645,8 @@ void mock_hw4_benchmark(int n_frames = 1000) {
     printf("  median: %.3f ms -> %.0f FPS\n", frame_times[n_frames/2], 1000.f / frame_times[n_frames/2]);
     printf("  p99: %.3f ms -> %.0f FPS\n", frame_times[(int)(n_frames*0.99)], 1000.f / frame_times[(int)(n_frames*0.99)]);
     printf("  best: %.3f ms -> %.0f FPS\n", frame_times[0], 1000.f / frame_times[0]);
+    printf("  last frame  ransac_ms: %.3f  fusion_ms: %.3f  wifi_ms: %.3f\n",
+           last.ransac_ms, last.fusion_ms, last.wifi_ms);
     printf("\nNote: this is a single-threaded CPU reference. HW4's ISP and\n");
     printf("NEON SIMD would push this further. Production Tesla code uses\n");
     printf("proprietary CUDA-like kernels on the FSD chip - not replicable here.\n");
@@ -485,6 +757,60 @@ bool test_brake_light_color_copy() {
     return sig.brake_red && sig.red_px == 16 && !sig.signal_yellow;
 }
 
+static Beacon phone_beacon(const std::string& mac) {
+    Beacon b;
+    b.mac = mac;
+    b.rssi_dbm = -48.f;
+    b.has_aoa = false;
+    return b;
+}
+
+bool test_phone_behind_van_promotes() {
+    WifiDensity wifi;
+    TemporalFilter filt;
+    std::vector<TemporalTrack> confirmed;
+    for (int i = 0; i < 3; ++i) {
+        auto flags = wifi.observe({phone_beacon("aa:11")}, false, false);
+        if (flags.size() != 1 || !flags[0].occluded) return false;
+        confirmed = filt.update({{flags[0].x, flags[0].z}}, i, "occluded");
+        if (i < 2 && !confirmed.empty()) return false;
+    }
+    return confirmed.size() == 1 && confirmed[0].hit_count == 3
+        && confirmed[0].hazard_type == "occluded";
+}
+
+bool test_one_frame_rssi_spike_never_promotes() {
+    WifiDensity wifi;
+    TemporalFilter filt;
+    auto flags = wifi.observe({phone_beacon("aa:11")}, false, false);
+    if (flags.size() != 1 || !flags[0].occluded) return false;
+    auto confirmed = filt.update({{flags[0].x, flags[0].z}}, 0, "occluded");
+    if (!confirmed.empty()) return false;
+    for (int i = 1; i <= 5; ++i) {
+        confirmed = filt.update({}, i, "occluded");
+        if (!confirmed.empty()) return false;
+    }
+    return true;
+}
+
+bool test_mac_randomization_keeps_cluster() {
+    WifiDensity wifi;
+    TemporalFilter filt;
+    std::string first_id;
+    for (int i = 0; i < 10; ++i) {
+        std::string mac = "02:00:00:00:00:" + std::to_string(i);
+        auto flags = wifi.observe({phone_beacon(mac)}, false, false);
+        if (flags.size() != 1 || !flags[0].occluded) return false;
+        if (flags[0].cluster_id.find(mac) != std::string::npos) return false;
+        if (i == 0) first_id = flags[0].cluster_id;
+        else if (flags[0].cluster_id != first_id) return false;
+        auto confirmed = filt.update({{flags[0].x, flags[0].z}}, i, "occluded");
+        if (filt.tracks.size() != 1) return false;
+        if (i >= 2 && confirmed.size() != 1) return false;
+    }
+    return filt.tracks.size() == 1 && filt.tracks[0].hit_count == 10;
+}
+
 // ---------- Main ----------
 #include <stdio.h>
 
@@ -503,6 +829,9 @@ int main() {
         {"track dropped after 4 misses", test_track_dropped_after_4_misses},
         {"fast car expires by max age", test_fast_car_expires_by_max_age},
         {"brake light stays on the color copy", test_brake_light_color_copy},
+        {"phone behind van promotes on frame 3", test_phone_behind_van_promotes},
+        {"one-frame RSSI spike never promotes", test_one_frame_rssi_spike_never_promotes},
+        {"MAC randomization keeps one cluster", test_mac_randomization_keeps_cluster},
     };
     int passed = 0;
     for (auto& t : tests) {

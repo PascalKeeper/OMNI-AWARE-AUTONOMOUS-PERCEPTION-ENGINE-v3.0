@@ -75,3 +75,4 @@ It is the honest measurement of what the real pipeline would do:
 - [x] Spectrum lock isolation fix
 - [x] Temporal FP filter
 - [ ] Closed-course field test
+- [x] Occluded-presence detection (Wi-Fi beacon density, three-frame promotion)

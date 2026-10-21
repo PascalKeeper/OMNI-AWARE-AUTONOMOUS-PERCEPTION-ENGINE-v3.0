@@ -2,18 +2,38 @@
 
 End-to-end perception loop. Each frame runs locally at ~218 FPS.
 Only hazards that persist for 3 frames are escalated to Grok.
+
+OMNI_FILTER_BACKEND selects the luminance filter. "python" is the
+default and the current behavior. "numba" uses rgb_filter_numba when
+that package imports, and falls back to the Python filter otherwise.
 """
+from __future__ import annotations
+
+import os
 import time
 import numpy as np
 
-from rgb_filter import rgb_filter, preserve_color
+from rgb_filter import rgb_filter as python_rgb_filter, preserve_color
 from quadrants import split_quadrants, assign_sensors
 from ransac import ransac_line, detect_color_hazards
 from physics import simulate_falling_object, predict_evasion
 from decision import decide, DEFAULT_SCENARIO
 from grok_client import analyze_hazard
-from temporal_filter import TemporalFilter
+from temporal_filter import TemporalFilter, project_to_meters
 from fast_bev import FastBevLookup
+from wifi_scan import WifiScanner
+
+
+def active_rgb_filter():
+    """Return the Python filter unless OMNI_FILTER_BACKEND=numba imports."""
+    backend = os.environ.get("OMNI_FILTER_BACKEND", "python").strip().lower()
+    if backend != "numba":
+        return python_rgb_filter
+    try:
+        from rgb_filter_numba import rgb_filter as compiled
+    except Exception:
+        return python_rgb_filter
+    return compiled
 
 
 class PerceptionEngine:
@@ -25,6 +45,7 @@ class PerceptionEngine:
         self.frame_count = 0
         self.hazard_log = []
         self.temporal = TemporalFilter()
+        self.wifi = WifiScanner(live=False)
         self._bev = None
         self._bev_shape = None
 
@@ -34,14 +55,19 @@ class PerceptionEngine:
             self._bev_shape = (height, width)
         return self._bev
 
-    def process_frame(self, img: np.ndarray) -> dict:
-        """Run one frame through the full pipeline."""
+    def process_frame(self, img: np.ndarray, beacons: list | None = None, radar: bool = False) -> dict:
+        """Run one frame through the full pipeline.
+
+        `beacons` injects a Wi-Fi scan. When it is omitted, the scanner
+        polls on its own interval (empty unless live=True). Occluded
+        cells join the same temporal update as camera outliers.
+        """
         self.frame_count += 1
         t0 = time.perf_counter()
 
         # 1. Color stays on the original frame. The filter writes a new gray buffer.
         color = preserve_color(img)
-        gray = rgb_filter(img)
+        gray = active_rgb_filter()(img)
         color_signals = detect_color_hazards(color)
 
         # 2. Quadrant split + sensor assignment
@@ -52,6 +78,7 @@ class PerceptionEngine:
         hazards = []
         image_outliers = []
         full_h, full_w = gray.shape
+        t_ransac = time.perf_counter()
         for name in ("road_left", "road_right"):
             road = sensors[name]
             H, W = road.shape
@@ -73,14 +100,28 @@ class PerceptionEngine:
                         "outlier_points": outlier_pts.tolist(),
                     }
                 )
+        ransac_ms = (time.perf_counter() - t_ransac) * 1000
 
-        # 4. Promote only clusters seen for 3 consecutive frames.
-        confirmed = self.temporal.update_image_outliers(
-            image_outliers,
+        # 3b. Wi-Fi density. A spike with no camera match and no radar
+        # return is only a tentative occluded track.
+        t_wifi = time.perf_counter()
+        scanned = self.wifi.read_beacons() if beacons is None else list(beacons)
+        flags = self.wifi.observe(scanned, visual=False, radar=radar)
+        wifi_pts = self.wifi.track_points(flags)
+        wifi_ms = (time.perf_counter() - t_wifi) * 1000
+
+        # 4. One temporal update for camera points and occluded cells.
+        # A second update would count a miss against the other set.
+        t_fusion = time.perf_counter()
+        camera_pts = project_to_meters(image_outliers, self._bev_for(full_h, full_w))
+        points = list(camera_pts) + list(wifi_pts)
+        labels = (["obstacle"] * len(camera_pts)) + (["occluded"] * len(wifi_pts))
+        confirmed = self.temporal.update(
+            points,
             frame=self.frame_count,
-            hazard_type="obstacle",
-            bev=self._bev_for(full_h, full_w),
+            labels=labels if labels else None,
         )
+        fusion_ms = (time.perf_counter() - t_fusion) * 1000
 
         # 5. Escalate confirmed tracks only.
         grok_results = []
@@ -113,6 +154,9 @@ class PerceptionEngine:
         return {
             "frame": self.frame_count,
             "elapsed_ms": round(elapsed_ms, 2),
+            "ransac_ms": round(ransac_ms, 3),
+            "fusion_ms": round(fusion_ms, 3),
+            "wifi_ms": round(wifi_ms, 3),
             "hazards_local": len(hazards),
             "confirmed_hazards": [
                 {
@@ -139,5 +183,7 @@ if __name__ == "__main__":
             img[500:560, 900:980] = 220  # inject a boulder
         result = engine.process_frame(img)
         print(f"Frame {result['frame']}: {result['elapsed_ms']} ms, "
+              f"ransac_ms={result['ransac_ms']}, fusion_ms={result['fusion_ms']}, "
+              f"wifi_ms={result['wifi_ms']}, "
               f"local hazards={result['hazards_local']}, "
               f"grok={[r['hazard_type'] for r in result['grok_results']]}")

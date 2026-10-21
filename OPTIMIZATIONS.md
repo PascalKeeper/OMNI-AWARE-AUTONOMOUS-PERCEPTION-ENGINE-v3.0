@@ -83,3 +83,21 @@ about 54 in the grayscale buffer, so nighttime signal and pedestrian color
 cues have to come from the preserved frame. Expected impact: color paths
 are no longer limited by that collapsed red channel. Recall does not move
 until a detector actually reads the preserved frame for those cues.
+
+## Wi-Fi shadow layer (v3.2)
+
+`src/wifi_scan.py` (`WifiScanner`) and the C++ `WifiDensity` in `cpp/omni_aware.cpp` poll nearby beacons about every 0.5 seconds. Linux uses `nmcli`, then `pywifi` if nmcli returns nothing. The C++ port uses `iw` (nl80211) when it is built on Linux. Each beacon is binned into near, mid, or far by RSSI when angle-of-arrival is absent, and placed with that bearing when it is present. A cell more than 10 dB above its rolling background, with no matching camera detection and no radar return, is an occluded presence. The pipeline feeds that cell into the existing temporal filter as a tentative track, so promotion still takes three consecutive hits. Clusters follow the RSSI pattern and its timing, not the MAC, because iOS and Android randomize MAC addresses. The frame log records `wifi_ms` beside `ransac_ms` and `fusion_ms`. This is a density hint for something the camera cannot see. It does not change the measured 14.1 ms pipeline, and the 422 FPS design goal stays the standing target.
+
+## Numba RGB filter (v3.3)
+
+`src/rgb_filter_numba.py` is a Numba-jitted 21/70/7 luminance filter. `src/rgb_filter.py` is unchanged and remains the default. `OMNI_FILTER_BACKEND=numba` selects the compiled filter. If Numba is not installed, or the import fails, the pipeline keeps the Python filter. `numba` is listed in `requirements.txt` as that optional backend.
+
+Filter-only benchmark on 2026-10-21, same 2000-frame count as the table above. One 1080p frame is built outside the clock, then each filter is called 2000 times. The Numba compile warmup is not included. These rows are a new measurement. They do not replace the October 12 per-pixel loop figure of 8.1 ms (58% of the 14.1 ms frame) in the bottleneck table above.
+
+| Filter | ms/frame |
+|--------|----------|
+| Python `rgb_filter.py` (this run) | 10.714 |
+| Numba `rgb_filter_numba.py` (this run) | 2.656 |
+| Speedup (Python / Numba) | 4.03x |
+
+The 422 FPS figure remains the standing design goal. It is not a measurement, and this filter-only run does not achieve it. The full-pipeline mean is still the 14.1 ms / 82 FPS row above; that table was not rewritten. Roadmap item 1 estimated a compiled filter under 0.5 ms. This run measured 2.656 ms, which is faster than the Python filter on the same 2000 calls and still short of that estimate. RANSAC, lower-resolution quadrants, and input downsampling are still open. The combined ~1.6 ms / 600+ FPS figure stays an estimate until the whole pipeline is remeasured.

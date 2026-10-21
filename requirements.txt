@@ -1,2 +1,5 @@
 numpy
 scipy
+# Optional at runtime. OMNI_FILTER_BACKEND defaults to python, and the
+# pipeline keeps src/rgb_filter.py when numba is not installed.
+numba

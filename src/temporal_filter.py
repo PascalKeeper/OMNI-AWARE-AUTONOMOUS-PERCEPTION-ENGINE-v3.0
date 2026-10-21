@@ -37,18 +37,30 @@ def _centroid(points: list[tuple[float, float]]) -> tuple[float, float]:
 
 def cluster_points(points: list[tuple[float, float]], radius_m: float = MATCH_M) -> list[tuple[float, float]]:
     """Group points within roughly `radius_m` of their cluster centroid."""
-    clusters: list[list[tuple[float, float]]] = []
+    labeled = _cluster_labeled([(p[0], p[1], "") for p in points], radius_m)
+    return [(x, z) for x, z, _label in labeled]
+
+
+def _cluster_labeled(
+    points: list[tuple[float, float, str]],
+    radius_m: float,
+) -> list[tuple[float, float, str]]:
+    clusters: list[list[tuple[float, float, str]]] = []
     for p in points:
         placed = False
         for group in clusters:
-            cx, cz = _centroid(group)
+            cx, cz = _centroid([(g[0], g[1]) for g in group])
             if math.hypot(p[0] - cx, p[1] - cz) <= radius_m:
                 group.append(p)
                 placed = True
                 break
         if not placed:
             clusters.append([p])
-    return [_centroid(group) for group in clusters]
+    out = []
+    for group in clusters:
+        xy = _centroid([(g[0], g[1]) for g in group])
+        out.append((xy[0], xy[1], group[0][2]))
+    return out
 
 
 def project_to_meters(
@@ -89,11 +101,20 @@ class TemporalFilter:
         points_m: list[tuple[float, float]],
         frame: int,
         hazard_type: str = "obstacle",
+        labels: list[str] | None = None,
     ) -> list[TemporalTrack]:
-        """Ingest one frame of (x, z) meter points. Return confirmed tracks."""
-        centroids = cluster_points([(float(p[0]), float(p[1])) for p in points_m], self.match_m)
+        """Ingest one frame of (x, z) meter points. Return confirmed tracks.
+
+        `labels`, when set, is one hazard type per point. Occluded Wi-Fi
+        cells use this so they stay tentative until three hits.
+        """
+        labeled = []
+        for i, p in enumerate(points_m):
+            label = hazard_type if labels is None else labels[i]
+            labeled.append((float(p[0]), float(p[1]), label))
+        centroids = _cluster_labeled(labeled, self.match_m)
         matched: set[int] = set()
-        for cx, cz in centroids:
+        for cx, cz, label in centroids:
             best: TemporalTrack | None = None
             best_d = self.match_m
             for track in self.tracks:
@@ -110,7 +131,7 @@ class TemporalFilter:
                     miss_count=0,
                     last_seen_frame=frame,
                     centroid=(cx, cz),
-                    hazard_type=hazard_type,
+                    hazard_type=label,
                 )
                 self._next_id += 1
                 self.tracks.append(born)
@@ -121,7 +142,7 @@ class TemporalFilter:
             best.miss_count = 0
             best.last_seen_frame = frame
             best.centroid = (cx, cz)
-            best.hazard_type = hazard_type
+            best.hazard_type = label
 
         for track in self.tracks:
             if track.object_id in matched:
