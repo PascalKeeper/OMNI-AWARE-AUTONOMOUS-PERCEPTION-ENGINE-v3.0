@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Traction loop: wheels, visual surface, and sound talking to each other.
 
 The system cross-references three independent signals:

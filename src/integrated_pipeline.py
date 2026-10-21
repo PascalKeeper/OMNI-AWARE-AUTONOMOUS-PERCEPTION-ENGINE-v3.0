@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Integrated OMNI-AWARE pipeline v3.1.
 
 Per-frame order: RGB filter -> quadrants -> RANSAC -> sensor fusion ->

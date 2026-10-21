@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Full OMNI-AWARE v3.0 pipeline: filter -> quadrants -> RANSAC -> temporal -> Grok.
 
 End-to-end perception loop. Each frame runs locally at ~218 FPS.

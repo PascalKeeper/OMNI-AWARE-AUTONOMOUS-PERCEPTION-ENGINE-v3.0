@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """CPU-bound color spectrum lock from OmniAware v1.2.0-GOLD.
 
 Raw pixel manipulation bypassing the GPU bus.

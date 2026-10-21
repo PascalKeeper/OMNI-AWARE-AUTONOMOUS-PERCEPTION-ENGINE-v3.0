@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """RANSAC inlier/outlier detection.
 
 Fits a model to road samples while rejecting outliers — boulders,

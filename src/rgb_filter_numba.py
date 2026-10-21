@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Numba version of the 21/70/7 luminance filter.
 
 The math matches src/rgb_filter.py. That module stays the default and

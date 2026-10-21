@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Wired pipeline that uses the shared feature buffer and Fast BEV.
 
 Local entry point for testing on a laptop without nuScenes data.

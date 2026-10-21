@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Map-aware prediction layer.
 
 Gives the perception engine context beyond line-of-sight: upcoming turns,

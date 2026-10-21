@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Decision engine: weigh survival odds against cost.
 
 Scores each hazard path and picks the best survival-to-cost ratio.

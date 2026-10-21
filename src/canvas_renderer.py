@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Canvas renderer: perspective projection driving view.
 
 Ported from OmniAwareDashboard v1.0.4 (Nov 2025).

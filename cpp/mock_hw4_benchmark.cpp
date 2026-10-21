@@ -1,3 +1,4 @@
+// Author: Joseph Rocco Peransi
 // Mock HW4 benchmark: simulates Tesla HW4-class hardware constraints
 // in software so we can estimate real-vehicle performance without
 // access to actual HW4 silicon.

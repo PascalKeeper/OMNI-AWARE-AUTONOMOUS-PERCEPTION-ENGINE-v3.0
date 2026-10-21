@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Benchmark harness: evaluate the perception pipeline against ground truth.
 
 In production, this would run against nuScenes or KITTI datasets.

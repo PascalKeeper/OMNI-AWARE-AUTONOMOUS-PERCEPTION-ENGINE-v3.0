@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Physics kernel: forward simulation of falling objects.
 
 Predicts where a falling object (log, boulder, debris) lands and

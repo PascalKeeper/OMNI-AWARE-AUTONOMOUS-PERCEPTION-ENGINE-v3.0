@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Grok API integration for cloud hazard analysis.
 
 Sends outlier frames and hazard metadata to Grok for semantic

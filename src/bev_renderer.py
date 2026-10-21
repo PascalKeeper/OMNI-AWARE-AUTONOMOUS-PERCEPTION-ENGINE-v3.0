@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Top-down BEV canvas renderer from OmniPerceptionDashboard v0.9.4.
 
 World coords: X [-10, 10] meters, Y [0, 100] meters ahead.

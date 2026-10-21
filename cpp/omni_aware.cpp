@@ -1,3 +1,4 @@
+// Author: Joseph Rocco Peransi
 // OMNI-AWARE v3.1 - C++ Reference Port
 // v3.2 adds WifiDensity for occluded presence. The Numba RGB filter is Python-side.
 // Target: Tesla HW4 (ARM Cortex-A76, ~50 TOPS INT8, dedicated ISP)

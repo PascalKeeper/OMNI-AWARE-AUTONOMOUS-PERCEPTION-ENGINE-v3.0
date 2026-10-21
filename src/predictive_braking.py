@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Predictive braking: collision warning before impact.
 
 Ported from OmniAwareDashboard v1.0.4 (Nov 2025).

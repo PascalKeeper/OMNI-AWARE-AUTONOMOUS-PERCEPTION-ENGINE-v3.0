@@ -1,4 +1,5 @@
 # Performance Analysis and Optimization Roadmap
+Author: Joseph Rocco Peransi
 
 ## Measured Results (CPU, Python, no GPU)
 

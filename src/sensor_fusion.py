@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Sensor fusion: staged detection ranges per sensor type.
 
 Ported from OmniAwareDashboard v1.0.4 (Nov 2025).

@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Quadrant split: spider-eye sensor architecture.
 
 Each sensor is divided into 4 quadrants so compute is spread

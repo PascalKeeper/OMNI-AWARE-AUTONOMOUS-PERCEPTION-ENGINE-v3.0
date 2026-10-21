@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """RGB filter: 21% red, 70% green, 7% blue.
 
 Reduces image data 3x by collapsing RGB to a single luminance channel.

@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Wi-Fi/BLE Shadow Sensing Layer — HaleHound-Fire Integration.
 
 Passive radio-frequency shadow mapping using ambient Wi-Fi 6 (5 GHz) and

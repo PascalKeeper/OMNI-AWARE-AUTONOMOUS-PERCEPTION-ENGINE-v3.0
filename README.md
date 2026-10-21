@@ -1,4 +1,5 @@
 # OMNI-AWARE Autonomous Perception Engine v3.0
+Author: Joseph Rocco Peransi
 
 CPU-first perception pipeline for autonomous hazard detection and decision-making.
 

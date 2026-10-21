@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Real-pipeline simulation: models OMNI-AWARE's actual failure modes.
 
 Unlike the perfect simulated detector (noisy GT copies), this models

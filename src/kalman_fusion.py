@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Kalman-style sensor fusion from OmniPerceptionDashboard v0.9.4.
 
 Confidence model: base 0.5 + lidar 0.3 + camera 0.15, minus 0.1 if

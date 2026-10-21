@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Performance profiling for OMNI-AWARE v3.1.
 
 Measures real FPS of the full pipeline and identifies bottlenecks.

@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """nuScenes-style evaluation harness.
 
 Simulates the official nuScenes evaluation protocol: per-frame detection

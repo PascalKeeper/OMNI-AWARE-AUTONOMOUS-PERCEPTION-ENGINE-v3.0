@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Wi-Fi beacon density layer for occluded presence.
 
 Polls nearby beacons about every 0.5 seconds. Identity is the RSSI

@@ -1,4 +1,5 @@
 # OMNI-AWARE Evaluation Results
+Author: Joseph Rocco Peransi
 
 ## Two Benchmarks, Two Detectors
 

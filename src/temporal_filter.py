@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Temporal persistence filter.
 
 A one-frame shadow or reflection must not reach the HUD. A cluster is

@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Fast BEV lookup-table path — pre-computed 2D-to-3D mapping.
 
 Avoids the "flatten the globe and Antarctica looks huge" distortion

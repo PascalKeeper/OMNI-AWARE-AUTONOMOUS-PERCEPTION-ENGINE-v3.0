@@ -1,4 +1,5 @@
 # OMNI-AWARE C++ Reference Port
+Author: Joseph Rocco Peransi
 
 ## What This Is
 

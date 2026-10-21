@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Shared feature buffer — process visual features once, share via references.
 
 Models the centralized foundation module pattern from the deep dives:

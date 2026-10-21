@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """Near-field ultrasonic echolocation layer — bat-inspired sonar.
 
 Complement to the existing 77 GHz radar. Ultrasound gives centimeter-scale

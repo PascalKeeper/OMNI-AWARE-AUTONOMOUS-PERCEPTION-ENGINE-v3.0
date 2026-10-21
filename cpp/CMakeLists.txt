@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
  cmake_minimum_required(VERSION 3.16)
 project(omni_aware_cpp LANGUAGES CXX)
 

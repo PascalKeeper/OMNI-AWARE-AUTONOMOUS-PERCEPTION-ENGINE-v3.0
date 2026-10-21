@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """AI Co-Pilot: Grok API mandate with Gemini backdoor.
 
 Primary: xAI Grok API (XAI_API_KEY).

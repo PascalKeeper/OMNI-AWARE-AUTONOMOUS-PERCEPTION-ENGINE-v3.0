@@ -1,3 +1,4 @@
+# Author: Joseph Rocco Peransi
 """System heartbeat and vitality monitor from v1.2.0-GOLD.
 
 Tracks compute load, heartbeat percentage, and CPU temperature.
