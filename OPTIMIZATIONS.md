@@ -64,3 +64,22 @@ measured baseline is 82 FPS mean. The optimization roadmap shows
 a credible path to 600+ FPS, but those numbers are estimates until
 benchmarked. Present it as: "baseline measured, target defined,
 path documented" - not "422 FPS achieved."
+
+## Implemented safety filters (v3.1)
+
+The temporal persistence filter (`src/temporal_filter.py` and the C++
+`TemporalFilter` in `cpp/omni_aware.cpp`) is now on the path between
+RANSAC and hazard escalation. A cluster is emitted only after 3
+consecutive frames, dropped after 3 misses, and expired after 10 frames
+since it was last seen. Expected impact: one-frame shadow and reflection
+false positives no longer reach the HUD or the Grok call. A stationary
+obstacle is unchanged once it has been seen for 3 frames. This does not
+by itself raise classed pedestrian recall.
+
+Spectrum-lock isolation is in place. The 21/70/7 weights run only on a
+separate grayscale buffer, and the original RGB frame is what brake-light
+red and signal yellow are read from. A 255 red brake light collapses to
+about 54 in the grayscale buffer, so nighttime signal and pedestrian color
+cues have to come from the preserved frame. Expected impact: color paths
+are no longer limited by that collapsed red channel. Recall does not move
+until a detector actually reads the preserved frame for those cues.

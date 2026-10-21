@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cfloat>
 #include <climits>
+#include <cmath>
 #include <functional>
 #include <iomanip>
 #include <random>
@@ -16,6 +17,11 @@
 #include <vector>
 
 // ---------- RGB Filter (21% R, 70% G, 7% B) ----------
+// Color-critical signals must never be read from the filtered buffer.
+// Brake-light red and signal yellow are read from the original RGB
+// pointer only. rgb_filter writes a separate grayscale buffer and does
+// not modify `rgb`. A 255 red brake light collapses to about 53.6,
+// which is no longer a red-channel contrast.
 // In C++ this is a tight loop over raw bytes - no Python overhead.
 // On HW4 this would run on the ISP or a NEON-optimized core.
 void rgb_filter(const uint8_t* rgb, float* gray, int w, int h) {
@@ -24,6 +30,28 @@ void rgb_filter(const uint8_t* rgb, float* gray, int w, int h) {
         const int base = i * 3;
         gray[i] = rgb[base] * 0.21f + rgb[base + 1] * 0.70f + rgb[base + 2] * 0.07f;
     }
+}
+
+struct ColorSignals {
+    bool brake_red = false;
+    bool signal_yellow = false;
+    int red_px = 0;
+};
+
+// Original RGB only. Do not pass the grayscale buffer here.
+ColorSignals read_color_signals(const uint8_t* rgb, int n_pixels) {
+    ColorSignals s;
+    for (int i = 0; i < n_pixels; ++i) {
+        const int r = rgb[i * 3];
+        const int g = rgb[i * 3 + 1];
+        const int b = rgb[i * 3 + 2];
+        if (r >= 200 && r >= g * 2 && r >= b * 2) {
+            s.brake_red = true;
+            s.red_px++;
+        }
+        if (r >= 200 && g >= 180 && b <= 80 && r >= b * 2) s.signal_yellow = true;
+    }
+    return s;
 }
 
 // ---------- Quadrant Split ----------
@@ -63,6 +91,111 @@ LineFit ransac_line(const std::vector<std::pair<float, float>>& pts,
     }
     return best;
 }
+
+// ---------- Temporal persistence (3 hits, 3 misses, 10-frame age) ----------
+struct TemporalTrack {
+    int object_id = 0;
+    int hit_count = 0;
+    int miss_count = 0;
+    int last_seen_frame = 0;
+    float x = 0;  // lateral meters
+    float z = 0;  // forward meters
+    std::string hazard_type;
+};
+
+struct TemporalFilter {
+    std::vector<TemporalTrack> tracks;
+    int next_id = 1;
+    float match_m = 2.f;
+    int promote_hits = 3;
+    int drop_misses = 3;
+    int max_age = 10;
+
+    static float hypot2(float x, float z) { return std::sqrt(x * x + z * z); }
+
+    std::vector<std::pair<float, float>> cluster(
+        const std::vector<std::pair<float, float>>& pts) const {
+        std::vector<std::vector<std::pair<float, float>>> groups;
+        for (auto& p : pts) {
+            bool placed = false;
+            for (auto& g : groups) {
+                float cx = 0, cz = 0;
+                for (auto& q : g) { cx += q.first; cz += q.second; }
+                cx /= (float)g.size();
+                cz /= (float)g.size();
+                if (hypot2(p.first - cx, p.second - cz) <= match_m) {
+                    g.push_back(p);
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) groups.push_back({p});
+        }
+        std::vector<std::pair<float, float>> cents;
+        for (auto& g : groups) {
+            float cx = 0, cz = 0;
+            for (auto& q : g) { cx += q.first; cz += q.second; }
+            cents.push_back({cx / (float)g.size(), cz / (float)g.size()});
+        }
+        return cents;
+    }
+
+    std::vector<TemporalTrack> update(const std::vector<std::pair<float, float>>& pts,
+                                      int frame, const std::string& hazard_type) {
+        auto cents = cluster(pts);
+        std::vector<int> matched;
+        auto seen = [&](int id) {
+            return std::find(matched.begin(), matched.end(), id) != matched.end();
+        };
+        for (auto& c : cents) {
+            int best = -1;
+            float best_d = match_m;
+            for (int i = 0; i < (int)tracks.size(); ++i) {
+                if (seen(tracks[i].object_id)) continue;
+                float d = hypot2(c.first - tracks[i].x, c.second - tracks[i].z);
+                if (d < best_d) { best = i; best_d = d; }
+            }
+            if (best < 0) {
+                TemporalTrack t;
+                t.object_id = next_id++;
+                t.hit_count = 1;
+                t.miss_count = 0;
+                t.last_seen_frame = frame;
+                t.x = c.first;
+                t.z = c.second;
+                t.hazard_type = hazard_type;
+                tracks.push_back(t);
+                matched.push_back(t.object_id);
+            } else {
+                auto& t = tracks[best];
+                t.hit_count += 1;
+                t.miss_count = 0;
+                t.last_seen_frame = frame;
+                t.x = c.first;
+                t.z = c.second;
+                t.hazard_type = hazard_type;
+                matched.push_back(t.object_id);
+            }
+        }
+        for (auto& t : tracks) {
+            if (seen(t.object_id)) continue;
+            t.miss_count += 1;
+            t.hit_count = 0;
+        }
+        std::vector<TemporalTrack> kept;
+        for (auto& t : tracks) {
+            int age = frame - t.last_seen_frame;
+            if (t.miss_count > drop_misses) continue;
+            if (age >= max_age) continue;
+            kept.push_back(t);
+        }
+        tracks.swap(kept);
+        std::vector<TemporalTrack> confirmed;
+        for (auto& t : tracks)
+            if (t.hit_count >= promote_hits) confirmed.push_back(t);
+        return confirmed;
+    }
+};
 
 // ---------- Sensor Fusion (v1.0.4 staged ranges) ----------
 struct Entity {
@@ -128,6 +261,9 @@ struct PipelineResult {
     int fps;
     bool braking;
     float advisory_speed;
+    int confirmed_tracks = 0;
+    bool brake_red = false;
+    bool signal_yellow = false;
     std::vector<Entity> entities;
     LineFit road;
     MapContext map;
@@ -149,10 +285,13 @@ PipelineResult run_pipeline(const uint8_t* rgb, int w, int h,
     PipelineResult r;
     auto t0 = std::chrono::high_resolution_clock::now();
 
-    // 1. RGB filter
+    // 1. RGB filter on a separate buffer. Color stays on `rgb`.
     auto t1 = t0;
     std::vector<float> gray(w * h);
     rgb_filter(rgb, gray.data(), w, h);
+    ColorSignals colors = read_color_signals(rgb, w * h);
+    r.brake_red = colors.brake_red;
+    r.signal_yellow = colors.signal_yellow;
     r.filter_ms = std::chrono::duration<float, std::milli>(
         std::chrono::high_resolution_clock::now() - t1).count();
 
@@ -171,6 +310,21 @@ PipelineResult run_pipeline(const uint8_t* rgb, int w, int h,
     r.road = ransac_line(pts);
     r.ransac_ms += std::chrono::duration<float, std::milli>(
         std::chrono::high_resolution_clock::now() - t1).count();
+
+    // 3b. Temporal filter between RANSAC and sensor fusion.
+    // Promote at 3 consecutive hits, drop after 3 misses or 10 frames.
+    static TemporalFilter g_temporal;
+    static int g_frame = 0;
+    ++g_frame;
+    std::vector<std::pair<float, float>> outliers_m;
+    const float meters_per_pixel = 0.05f;
+    for (auto& p : pts) {
+        float pred = r.road.m * p.first + r.road.b;
+        if (std::abs(p.second - pred) >= 2.f)
+            outliers_m.push_back({p.first * meters_per_pixel, p.second * meters_per_pixel});
+    }
+    auto confirmed = g_temporal.update(outliers_m, g_frame, "obstacle");
+    r.confirmed_tracks = (int)confirmed.size();
 
     // 4. Sensor fusion + braking
     t1 = std::chrono::high_resolution_clock::now();
@@ -269,6 +423,68 @@ bool test_no_python_runtime() {
     return true;
 }
 
+bool test_flicker_never_promotes() {
+    TemporalFilter f;
+    for (int i = 0; i < 5; ++i) {
+        // Each frame is a new place, and the on/off case below breaks the streak.
+        auto c = f.update({{i * 5.f, 0.f}}, i, "shadow");
+        if (!c.empty()) return false;
+    }
+    TemporalFilter flicker;
+    for (int i = 0; i < 5; ++i) {
+        std::vector<std::pair<float, float>> pts;
+        if (i % 2 == 0) pts.push_back({0.f, 5.f});
+        auto c = flicker.update(pts, i, "shadow");
+        if (!c.empty()) return false;
+    }
+    return true;
+}
+
+bool test_boulder_promotes_on_frame_3() {
+    TemporalFilter f;
+    std::vector<TemporalTrack> confirmed;
+    for (int i = 0; i < 4; ++i) {
+        confirmed = f.update({{1.f, 8.f}}, i, "boulder");
+        if (i < 2 && !confirmed.empty()) return false;
+        if (i == 2 && (confirmed.size() != 1 || confirmed[0].hit_count != 3)) return false;
+    }
+    return confirmed.size() == 1 && confirmed[0].hit_count == 4;
+}
+
+bool test_track_dropped_after_4_misses() {
+    TemporalFilter f;
+    f.update({{0.f, 10.f}}, 0, "boulder");
+    for (int i = 1; i <= 4; ++i) f.update({}, i, "boulder");
+    return f.tracks.empty();
+}
+
+bool test_fast_car_expires_by_max_age() {
+    TemporalFilter f;
+    f.update({{0.f, 20.f}}, 0, "car");
+    f.update({{1.f, 20.f}}, 1, "car");
+    if (f.tracks.size() != 1 || f.tracks[0].hit_count != 2) return false;
+    f.update({}, 4, "car");  // one miss, age 3: still alive
+    if (f.tracks.size() != 1) return false;
+    f.update({}, 11, "car");  // age 10, miss count still under the drop rule
+    return f.tracks.empty();
+}
+
+bool test_brake_light_color_copy() {
+    const int w = 8, h = 8;
+    std::vector<uint8_t> rgb(w * h * 3, 0);
+    for (int y = 2; y < 6; ++y) {
+        for (int x = 2; x < 6; ++x) rgb[(y * w + x) * 3] = 255;
+    }
+    auto original = rgb;
+    std::vector<float> gray(w * h, -1.f);
+    rgb_filter(rgb.data(), gray.data(), w, h);
+    if (rgb != original) return false;
+    const float g = gray[3 * w + 3];
+    if (!(g < 80.f && std::abs(g - 255.f * 0.21f) < 1.f)) return false;
+    ColorSignals sig = read_color_signals(rgb.data(), w * h);
+    return sig.brake_red && sig.red_px == 16 && !sig.signal_yellow;
+}
+
 // ---------- Main ----------
 #include <stdio.h>
 
@@ -282,6 +498,11 @@ int main() {
         {"surface agreement", test_surface_agreement},
         {"map advisory", test_map_advisory},
         {"no Python runtime", test_no_python_runtime},
+        {"flicker never promotes", test_flicker_never_promotes},
+        {"boulder promotes on frame 3", test_boulder_promotes_on_frame_3},
+        {"track dropped after 4 misses", test_track_dropped_after_4_misses},
+        {"fast car expires by max age", test_fast_car_expires_by_max_age},
+        {"brake light stays on the color copy", test_brake_light_color_copy},
     };
     int passed = 0;
     for (auto& t : tests) {

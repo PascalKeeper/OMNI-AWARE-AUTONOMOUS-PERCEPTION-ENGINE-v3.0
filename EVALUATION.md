@@ -72,6 +72,6 @@ It is the honest measurement of what the real pipeline would do:
 - [x] Real-pipeline failure modes modeled
 - [x] Honest comparison documented
 - [ ] Real nuScenes data run
-- [ ] Spectrum lock isolation fix
-- [ ] Temporal FP filter
+- [x] Spectrum lock isolation fix
+- [x] Temporal FP filter
 - [ ] Closed-course field test

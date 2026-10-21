@@ -34,7 +34,10 @@ def ransac_line(pts: np.ndarray, n_iter: int = 200, thresh: float = 2.0, rng=Non
 
 
 def detect_hazards(gray: np.ndarray, road_y: float = 540.0) -> dict:
-    """Scan a grayscale frame for outlier hazards against the road line."""
+    """Scan a grayscale frame for outlier hazards against the road line.
+
+    Geometry only. Brake lights and turn signals are not decided here.
+    """
     H, W = gray.shape
     # sample points along the expected road line
     xs = np.linspace(0, W - 1, 200)
@@ -48,4 +51,28 @@ def detect_hazards(gray: np.ndarray, road_y: float = 540.0) -> dict:
         "n_outliers": int(out.sum()),
         "outlier_points": outlier_pts.tolist(),
         "hazard_detected": len(outlier_pts) > 0,
+    }
+
+
+def detect_color_hazards(rgb: np.ndarray) -> dict:
+    """Brake-light red and signal yellow from the preserved RGB frame.
+
+    `rgb` must be the original frame or preserve_color()'s copy.
+    The grayscale filter output has no red channel and is rejected.
+    """
+    if rgb.ndim != 3 or rgb.shape[2] < 3:
+        raise ValueError(
+            "color hazards require the preserved RGB frame, not the filtered grayscale buffer"
+        )
+    channels = rgb.astype(np.float32, copy=False)
+    red = channels[..., 0]
+    green = channels[..., 1]
+    blue = channels[..., 2]
+    brake = (red >= 200.0) & (red >= green * 2.0) & (red >= blue * 2.0)
+    signal = (red >= 200.0) & (green >= 180.0) & (blue <= 80.0) & (red >= blue * 2.0)
+    return {
+        "brake_light": bool(np.any(brake)),
+        "signal_yellow": bool(np.any(signal)),
+        "n_brake_px": int(np.count_nonzero(brake)),
+        "n_signal_px": int(np.count_nonzero(signal)),
     }
