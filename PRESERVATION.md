@@ -1,3 +1,5 @@
+Author: Joseph Rocco Peransi
+
 # Preservation policy
 
 No deletions. Superseded work moves to archive. Aspirational targets such as the 422 FPS design goal remain documented even when not yet achieved. All prior work stays recoverable.
